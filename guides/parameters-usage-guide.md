@@ -240,12 +240,13 @@ param logAnalyticsName = 'mycompany-law-prod'
 using './main.bicep'
 
 param enableAIFoundry = true
+param aiFoundryProjectName = 'production-project'
 param aiFoundryInstances = [
   {
     name: 'my-foundry-eastus'
     location: 'eastus'
     customSubDomainName: ''
-    defaultProjectName: 'production-project'
+    defaultProjectName: aiFoundryProjectName
   }
 ]
 param aiFoundryModelsConfig = [

@@ -11,6 +11,9 @@
     "location": {
       "value": "eastus"
     },
+    "secondaryLocation": {
+      "value": "eastus2"
+    },
     "tags": {
       "value": {
         "azd-env-name": "citadel-dev",
@@ -271,19 +274,22 @@
     "aiSearchInstances": {
       "value": []
     },
+    "aiFoundryProjectName": {
+      "value": "citadel-governance-project"
+    },
     "aiFoundryInstances": {
       "value": [
         {
           "name": "",
           "location": "eastus",
           "customSubDomainName": "",
-          "defaultProjectName": "citadel-governance-project"
+          "defaultProjectName": ""
         },
         {
           "name": "",
           "location": "eastus2",
           "customSubDomainName": "",
-          "defaultProjectName": "citadel-governance-project"
+          "defaultProjectName": ""
         }
       ]
     },

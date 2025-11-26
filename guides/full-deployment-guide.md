@@ -404,12 +404,14 @@ AI Citadel can deploy **AI Foundry instances** with model deployments automatica
 ##### Single Instance Deployment
 
 ```bicep
+param aiFoundryProjectName: 'citadel-governance-project'
+
 param aiFoundryInstances = [
   {
     name: ''  // Auto-generated
     location: 'eastus'
     customSubDomainName: ''
-    defaultProjectName: 'citadel-governance-project'
+    defaultProjectName: aiFoundryProjectName
   }
 ]
 
@@ -436,18 +438,20 @@ param aiFoundryModelsConfig = [
 ##### Multi-Instance Deployment (Geo-Redundancy)
 
 ```bicep
+param aiFoundryProjectName = 'production-project'
+
 param aiFoundryInstances = [
   {
     name: 'aif-citadel-eastus'
     location: 'eastus'
     customSubDomainName: 'citadel-eastus'
-    defaultProjectName: 'production-project'
+    defaultProjectName: aiFoundryProjectName
   }
   {
     name: 'aif-citadel-westus'
     location: 'westus'
     customSubDomainName: 'citadel-westus'
-    defaultProjectName: 'production-project'
+    defaultProjectName: aiFoundryProjectName
   }
 ]
 
@@ -896,18 +900,20 @@ param entraTenantId = '00000000-0000-0000-0000-000000000000'
 param entraClientId = '11111111-2222-3333-4444-555555555555'
 
 // Multi-region AI Foundry
+param aiFoundryProjectName = 'production-project'
+
 param aiFoundryInstances = [
   {
     name: 'aif-citadel-prod-eastus'
     location: 'eastus'
     customSubDomainName: 'citadel-prod-eastus'
-    defaultProjectName: 'production-project'
+    defaultProjectName: aiFoundryProjectName
   }
   {
     name: 'aif-citadel-prod-westus'
     location: 'westus'
     customSubDomainName: 'citadel-prod-westus'
-    defaultProjectName: 'production-project'
+    defaultProjectName: aiFoundryProjectName
   }
 ]
 

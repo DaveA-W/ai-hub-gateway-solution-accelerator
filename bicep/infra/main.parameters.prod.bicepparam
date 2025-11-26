@@ -8,6 +8,7 @@ using './main.bicep'
 // Basic Configuration
 param environmentName = 'citadel-prod'
 param location = 'eastus'
+param secondaryLocation = 'eastus2'
 param resourceGroupName = ''  // Auto-generated based on environmentName
 param tags = {
   'azd-env-name': 'citadel-prod'
@@ -62,18 +63,19 @@ param existingLogAnalyticsRG = ''  // Set to existing workspace resource group
 param existingLogAnalyticsSubscriptionId = ''  // Set if workspace is in different subscription
 
 // Production AI Foundry configuration
+param aiFoundryProjectName = 'production-project'
 param aiFoundryInstances = [
   {
     name: ''
-    location: 'eastus'
+    location: location
     customSubDomainName: ''
-    defaultProjectName: 'production-project'
+    defaultProjectName: ''
   }
   {
     name: ''
-    location: 'westus'
+    location:  secondaryLocation
     customSubDomainName: ''
-    defaultProjectName: 'production-project'
+    defaultProjectName: ''
   }
 ]
 

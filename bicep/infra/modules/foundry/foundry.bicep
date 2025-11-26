@@ -41,7 +41,7 @@ param lawId string = ''
 param  apimPrincipalId string
 
 @description('AI Foundry project name')
-param  foundryProjectName string = 'citadel-governance-project'
+param  foundryProjectName string = ''
 
 @description('The instrumentation key for Application Insights')
 @secure()
@@ -99,7 +99,7 @@ resource foundryResources 'Microsoft.CognitiveServices/accounts@2025-06-01' = [f
 
 resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-preview' = [for (config, i) in aiServicesConfig: {  
   #disable-next-line BCP334
-  name: config.defaultProjectName != null ? config.defaultProjectName : foundryProjectName
+  name: !empty(config.defaultProjectName) ? config.defaultProjectName : (!empty(foundryProjectName) ? foundryProjectName : (!empty(config.name) ? config.name : 'aif-${resourceToken}'))
   parent: foundryResources[i]
   location: config.location
   tags: tags

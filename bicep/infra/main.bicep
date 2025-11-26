@@ -13,6 +13,10 @@ param environmentName string
 @allowed([ 'uaenorth', 'southafricanorth', 'westeurope', 'southcentralus', 'australiaeast', 'canadaeast', 'eastus', 'eastus2', 'francecentral', 'japaneast', 'northcentralus', 'swedencentral', 'switzerlandnorth', 'uksouth' ])
 param location string
 
+@description('Secondary location for all resources.')
+@allowed([ '', 'uaenorth', 'southafricanorth', 'westeurope', 'southcentralus', 'australiaeast', 'canadaeast', 'eastus', 'eastus2', 'francecentral', 'japaneast', 'northcentralus', 'swedencentral', 'switzerlandnorth', 'uksouth' ])
+param secondaryLocation string = ''
+
 @description('Tags to be applied to resources.')
 param tags object = { 'azd-env-name': environmentName, 'SecurityControl': 'Ignore' }
 
@@ -287,21 +291,27 @@ param aiSearchInstances array = [
   // }
 ]
 
+@description('AI Foundry instances default project name. Leave blank for auto-generated name.')
+param aiFoundryProjectName string = ''
+
 @description('AI Foundry instances configuration array.')
-param aiFoundryInstances array = [
-  {
-    name: !empty(aiFoundryResourceName) ? aiFoundryResourceName : ''
-    location: location
-    customSubDomainName: ''
-    defaultProjectName: 'citadel-governance-project'
-  }
-  {
-    name: !empty(aiFoundryResourceName) ? aiFoundryResourceName : ''
-    location: 'eastus2'
-    customSubDomainName: ''
-    defaultProjectName: 'citadel-governance-project'
-  }
-]
+param aiFoundryInstances array = concat([
+    {
+      name: !empty(aiFoundryResourceName) ? aiFoundryResourceName : ''
+      location: location
+      customSubDomainName: ''
+      defaultProjectName: ''
+    }
+  ],
+  !empty(secondaryLocation) ? [
+      {
+        name: !empty(aiFoundryResourceName) ? aiFoundryResourceName : ''
+        location: secondaryLocation
+        customSubDomainName: ''
+        defaultProjectName: ''
+      }
+  ] : []
+)
 
 @description('AI Foundry model deployments configuration - configure model deployments for Foundry instances.')
 // Leaving 'aiserviceIndex' empty or omitted means this model deployment will be created for all AI Foundry resources in 'aiFoundryInstances', 
@@ -638,7 +648,7 @@ module foundry 'modules/foundry/foundry.bicep' = if(enableAIFoundry) {
     modelsConfig: transformedAiFoundryModelsConfig
     lawId: monitoring.outputs.logAnalyticsWorkspaceId
     apimPrincipalId: apimManagedIdentity.outputs.managedIdentityPrincipalId
-    foundryProjectName: 'citadel-governance-project'
+    foundryProjectName: aiFoundryProjectName
     appInsightsInstrumentationKey: monitoring.outputs.foundryApplicationInsightsInstrumentationKey
     appInsightsId: monitoring.outputs.foundryApplicationInsightsId
     publicNetworkAccess: 'Enabled'

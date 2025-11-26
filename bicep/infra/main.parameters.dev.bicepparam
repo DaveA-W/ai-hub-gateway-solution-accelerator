@@ -8,6 +8,7 @@ using './main.bicep'
 // Basic Configuration
 param environmentName = 'ai-hub-citadel-dev'
 param location = 'eastus'
+param secondaryLocation = 'eastus2'
 param resourceGroupName = ''  // Auto-generated based on environmentName
 param tags = {
   'azd-env-name': 'ai-hub-citadel-dev'

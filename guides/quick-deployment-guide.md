@@ -79,7 +79,7 @@ azd auth login
 azd env new ai-hub-citadel-dev
 
 # Set custom environment variables
-azd env set AZURE_LOCATION eastus2
+azd env set AZURE_LOCATION eastus
 azd env set APIM_SKU Developer
 azd env set ENABLE_AI_FOUNDRY true
 

@@ -18,6 +18,7 @@ param environmentName = 'citadel-dev'
 //          canadaeast, eastus, eastus2, francecentral, japaneast, northcentralus, 
 //          swedencentral, switzerlandnorth, uksouth
 param location = 'eastus'
+param secondaryLocation = 'eastus2'
 
 // Tags applied to all resources
 param tags = {
@@ -178,19 +179,20 @@ param aiSearchInstances = [
 ]
 
 // AI Foundry Instances Configuration
-// Configure AI Foundry instances and their locations
+// Configure AI Foundry instances, their locations and default project name
+param aiFoundryProjectName = '' // Leave empty for auto-generated name
 param aiFoundryInstances = [
   {
     name: ''  // Leave empty for auto-generated name
     location: location
     customSubDomainName: ''
-    defaultProjectName: 'citadel-governance-project'
+    defaultProjectName: '' // Leave empty unless distinct names required per instance
   }
   {
     name: ''  // Leave empty for auto-generated name
-    location: 'eastus2'
+    location: secondaryLocation
     customSubDomainName: ''
-    defaultProjectName: 'citadel-governance-project'
+    defaultProjectName: '' // Leave empty unless distinct names required per instance
   }
 ]
 
