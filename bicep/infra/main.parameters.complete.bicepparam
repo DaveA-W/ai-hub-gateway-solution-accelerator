@@ -18,6 +18,7 @@ param environmentName = 'citadel-dev'
 //          canadaeast, eastus, eastus2, francecentral, japaneast, northcentralus, 
 //          swedencentral, switzerlandnorth, uksouth
 param location = 'eastus'
+// See https://learn.microsoft.com/en-us/azure/networking/azure-network-latency?tabs=APAC%2CAusNz
 param secondaryLocation = 'eastus2'
 
 // Tags applied to all resources
@@ -181,6 +182,8 @@ param aiSearchInstances = [
 // AI Foundry Instances Configuration
 // Configure AI Foundry instances, their locations and default project name
 param aiFoundryProjectName = '' // Leave empty for auto-generated name
+
+// See https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/concepts/models-sold-directly-by-azure
 param aiFoundryInstances = [
   {
     name: ''  // Leave empty for auto-generated name
