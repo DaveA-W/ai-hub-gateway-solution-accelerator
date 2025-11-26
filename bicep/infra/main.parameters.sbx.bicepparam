@@ -27,7 +27,7 @@ param tags = {
   System: 'AIRBUS'
   'azd-env-name': 'airbus-sbx'
   SecurityControl: 'Ignore'
-  Project: 'AI-Citadel-Gateway'
+  Project: 'AIRBUS'
 }
 
 // =============================================================================
@@ -35,24 +35,25 @@ param tags = {
 // =============================================================================
 
 param resourceGroupName = 'DAW-SYD-NS-ARG-Airbus'
-param apimIdentityName = ''
-param usageLogicAppIdentityName = ''
-param apimServiceName = ''
-param logAnalyticsName = ''
-param apimApplicationInsightsDashboardName = ''
-param funcAplicationInsightsDashboardName = ''
-param foundryApplicationInsightsDashboardName = ''
-param apimApplicationInsightsName = ''
-param funcApplicationInsightsName = ''
-param foundryApplicationInsightsName = ''
-param eventHubNamespaceName = ''
-param cosmosDbAccountName = ''
-param usageProcessingLogicAppName = ''
-param storageAccountName = ''
-param languageServiceName = ''
-param aiContentSafetyName = ''
-param apicServiceName = ''
-param aiFoundryResourceName = ''
+param apimIdentityName = 'sp-mid-syd-sbx-airbus-apim'
+param usageLogicAppIdentityName = 'sp-mid-syd-sbx-airbus-usage'
+param apimServiceName = 'waresources-apim-sbx'
+param logAnalyticsName = 'daw-syd-sbx-law-airbus'
+param apimApplicationInsightsDashboardName = 'daw-syd-sbx-ain-apim-airbus-dash'
+param funcAplicationInsightsDashboardName = 'daw-syd-sbx-ain-airbus-functions-dash'
+param foundryApplicationInsightsDashboardName = 'daw-syd-sbx-ain-airbus-foundry-dash'
+param apimApplicationInsightsName = 'daw-syd-sbx-ain-apim'
+param funcApplicationInsightsName = 'daw-syd-sbx-ain-airbus-functions'
+param foundryApplicationInsightsName = 'daw-syd-sbx-ain-airbus-foundry'
+param eventHubNamespaceName = 'daw-syd-sbx-evh-airbus'
+param cosmosDbAccountName = 'dawsydsbxcosmosairbus'
+param usageProcessingLogicAppName = 'daw-syd-sbx-lap-airbus-usage'
+param storageAccountName = 'dawsydsbxstaairbus'
+param languageServiceName = 'daw-syd-sbx-lan-airbus'
+param aiContentSafetyName = 'daw-syd-sbx-cos-airbus'
+param apicServiceName = 'daw-syd-sbx-apc-apim'
+// param aiFoundryResourceName = 'daw-syd-sbx-aif-airbus'
+// param aiFoundryResourceName2 = 'daw-tok-sbx-aif-airbus' 
 
 // =============================================================================
 // MONITORING PARAMETERS
@@ -69,45 +70,46 @@ param existingLogAnalyticsSubscriptionId = ''  // Subscription ID (leave empty f
 // =============================================================================
 
 // Virtual Network Configuration
-param vnetName = ''
+param vnetName = 'DAW-SYD-NS-VNT-10.64.80.0'
 param useExistingVnet = false
-param existingVnetRG = ''
+param existingVnetRG = '' // WAR-SYD-NS-ARG-Network
 
 // Subnet Names
-param apimSubnetName = ''
-param privateEndpointSubnetName = ''
-param functionAppSubnetName = ''
+param apimSubnetName = 'DAW-SYD-NS-SUB-APIM'
+param privateEndpointSubnetName = 'DAW-SYD-NS-SUB-PE'
+param functionAppSubnetName = 'DAW-SYD-NS-SUB-ASE'
 
 // Network Security Groups and Route Tables
-param apimNsgName = ''
-param privateEndpointNsgName = ''
-param functionAppNsgName = ''
-param apimRouteTableName = ''
+param apimNsgName = 'DAW-SYD-NS-NSG-APIM'
+param privateEndpointNsgName = 'DAW-SYD-NS-NSG-PE'
+param functionAppNsgName = 'DAW-SYD-NS-NSG-ASE'
+param apimRouteTableName = 'DAW-SYD-NS-RT-APIM'
 
 // VNet Address Spaces and Subnet Prefixes
-param vnetAddressPrefix = '10.170.0.0/24'
-param apimSubnetPrefix = '10.170.0.0/26'
-param privateEndpointSubnetPrefix = '10.170.0.64/26'
-param functionAppSubnetPrefix = '10.170.0.128/26'
+param vnetAddressPrefix = '10.64.80.0/24'
+param apimSubnetPrefix = '10.64.83.0/27'
+param privateEndpointSubnetPrefix = '10.64.83.64/26'
+param functionAppSubnetPrefix = '10.64.84.0/25'
+// TODO: Deploy functionApp into ASE
 
 // DNS Zone Configuration (for existing VNet scenarios)
-param dnsZoneRG = ''
-param dnsSubscriptionId = ''
+// param dnsZoneRG = 'WAR-SYD-NS-ARG-Network'
+// param dnsSubscriptionId = '0de677dd-b619-4940-89a8-e0eef88f21f1'
 
 // =============================================================================
 // PRIVATE ENDPOINTS
 // =============================================================================
 
-param storageBlobPrivateEndpointName = ''
-param storageFilePrivateEndpointName = ''
-param storageTablePrivateEndpointName = ''
-param storageQueuePrivateEndpointName = ''
-param cosmosDbPrivateEndpointName = ''
-param eventHubPrivateEndpointName = ''
-param openAiPrivateEndpointName = ''
-param languageServicePrivateEndpointName = ''
-param aiContentSafetyPrivateEndpointName = ''
-param apimV2PrivateEndpointName = ''
+param storageBlobPrivateEndpointName = 'DAW-SYD-NS-PE-AI-011'
+param storageFilePrivateEndpointName = 'DAW-SYD-NS-PE-AI-012'
+param storageTablePrivateEndpointName = 'DAW-SYD-NS-PE-AI-013'
+param storageQueuePrivateEndpointName = 'DAW-SYD-NS-PE-AI-014'
+param cosmosDbPrivateEndpointName = 'DAW-SYD-NS-PE-AI-002'
+param eventHubPrivateEndpointName = 'DAW-SYD-NS-PE-AI-003'
+param openAiPrivateEndpointName = 'DAW-SYD-NS-PE-AI-020'
+param languageServicePrivateEndpointName = 'DAW-SYD-NS-PE-AI-021'
+param aiContentSafetyPrivateEndpointName = 'DAW-SYD-NS-PE-AI-022'
+param apimV2PrivateEndpointName = 'DAW-SYD-NS-PE-AI-001'
 
 // =============================================================================
 // SERVICES NETWORK ACCESS CONFIGURATION
@@ -140,7 +142,7 @@ param enableAIGatewayPiiRedaction = true
 param enableOpenAIRealtime = true
 param enableAIFoundry = true
 param entraAuth = false
-param enableAPICenter = false
+param enableAPICenter = true
 
 // =============================================================================
 // COMPUTE SKU & SIZE
@@ -185,13 +187,13 @@ param aiSearchInstances = [
 param aiFoundryProjectName = 'airbus-governance' // Leave empty for auto-generated name
 param aiFoundryInstances = [
   {
-    name: ''  // Leave empty for auto-generated name
+    name: 'daw-syd-sbx-aif-airbus'  // Leave empty for auto-generated name
     location: location
     customSubDomainName: ''
     defaultProjectName: '' // Leave empty unless distinct names required per instance
   }
   {
-    name: ''  // Leave empty for auto-generated name
+    name: 'daw-tok-sbx-aif-airbus'  // Leave empty for auto-generated name
     location: secondaryLocation
     customSubDomainName: ''
     defaultProjectName: '' // Leave empty unless distinct names required per instance
