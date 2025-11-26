@@ -29,7 +29,7 @@ param eventHubCapacityUnits = 1
 param createAppInsightsDashboards = false
 
 // Disable API Center in dev to save costs
-param enableAPICenter = true
+param enableAPICenter = false
 
 // Enable features for testing
 param enableAIFoundry = true
