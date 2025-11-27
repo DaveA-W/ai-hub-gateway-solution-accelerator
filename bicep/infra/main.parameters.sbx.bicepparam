@@ -86,7 +86,7 @@ param functionAppNsgName = 'DAW-SYD-NS-NSG-ASE'
 param apimRouteTableName = 'DAW-SYD-NS-RT-APIM'
 
 // VNet Address Spaces and Subnet Prefixes
-param vnetAddressPrefix = '10.64.80.0/24'
+param vnetAddressPrefix = '10.64.80.0/21'
 param apimSubnetPrefix = '10.64.83.0/27'
 param privateEndpointSubnetPrefix = '10.64.83.64/26'
 param functionAppSubnetPrefix = '10.64.84.0/25'
