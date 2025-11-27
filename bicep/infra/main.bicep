@@ -241,6 +241,10 @@ param entraAuth bool = false
 @description('Enable API Center for API governance and discovery.')
 param enableAPICenter bool = true
 
+@description('Location of the API Center service. Leave blank to use primary location, where API Center is available in that region.')
+@allowed(['', 'australiaeast', 'canadacentral', 'centralindia', 'eastus', 'francecentral', 'swedencentral', 'uksouth', 'westeurope' ])
+param apicLocation string = ''
+
 //
 // COMPUTE SKU & SIZE - SKUs and capacity settings for services
 //
@@ -801,7 +805,7 @@ module apiCenter './modules/apic/apic.bicep' = if(enableAPICenter) {
   params: {
     apicServiceName: !empty(apicServiceName) ? apicServiceName : '${abbrs.apiCenterService}${resourceToken}'
     apicsku: apicSku
-    location: 'swedencentral'
+    location: !empty(apicLocation) ? apicLocation : location
     tags: tags
   }
 }
