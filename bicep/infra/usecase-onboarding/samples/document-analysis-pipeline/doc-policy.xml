@@ -49,22 +49,24 @@
         <!-- Add timestamp for processing time tracking -->
         <set-variable name="requestStartTime" value="@(DateTime.UtcNow)" />
         
-        <!-- Set timeout for long-running operations -->
+        <!-- TODO: Set timeout for long-running operations 
+             Error in element 'timeout' on line 53, column 10: There is no policy matching element name
         <timeout timeout="120" />
-        
+         -->
     </inbound>
     
     <backend>
         <base />
         
-        <!-- Retry logic for transient failures -->
+        <!-- TODO: Retry logic for transient failures
+             Error in element 'backend' on line 57, column 6: backend section allows only one policy to be specified
         <retry condition="@(context.Response.StatusCode == 429 || context.Response.StatusCode &gt;= 500)" count="3" interval="2" delta="1" max-interval="10">
             <set-header name="X-Retry-Attempt" exists-action="override">
                 <value>@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;retryCount&quot;, 0).ToString())</value>
             </set-header>
             <set-variable name="retryCount" value="@(context.Variables.GetValueOrDefault&lt;int&gt;(&quot;retryCount&quot;, 0) + 1)" />
         </retry>
-        
+        -->
     </backend>
     
     <outbound>

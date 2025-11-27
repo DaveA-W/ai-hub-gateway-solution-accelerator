@@ -42,7 +42,7 @@ param apiNameMapping = {
     'document-intelligence-api'
   ]
   OAI: [
-    'azure-openai-service-api', 'universal-llm-api'
+    'azure-openai-service-api'
   ]
 }
 
