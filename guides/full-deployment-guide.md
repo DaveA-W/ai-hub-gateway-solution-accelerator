@@ -15,7 +15,8 @@ For quick non-production deployments, see the [Quick Deployment Guide](./quick-d
    - [Network Architecture](#3-network-architecture)
    - [AI Model Deployment](#4-ai-model-deployment-optional)
    - [Log Analytics Strategy](#5-log-analytics-strategy)
-   - [Security & Compliance](#6-security--compliance)
+   - [Inference API Diagnostic Logging](#6-inference-api-diagnostic-logging)
+   - [Security & Compliance](#7-security--compliance)
 3. [Source Control Strategy](#-source-control-strategy)
 4. [Deployment Execution](#-deployment-execution)
 5. [Environment-Specific Configurations](#-environment-specific-configurations)
@@ -70,6 +71,10 @@ Use the below checklist to plan your deployment configuration:
   - [ ] Development (cost-optimized SKUs)
   - [ ] Staging (production SKUs with reduced capacity)
   - [ ] Production (production SKUs with full capacity)
+- [ ] Inference API Diagnostic Logging
+  - [ ] Azure Monitor LLM log verbosity (enabled/disabled, message capture, max payload size)
+  - [ ] Application Insights log headers and body capture size
+  - [ ] Use defaults (recommended) or customize per environment
 - [ ] Source Control Strategy
   - [ ] Single repository with branches per environment
       - [ ] Branch for original unchanged Citadel Governance Hub repo (synchronized with upstream)
@@ -640,7 +645,148 @@ param existingLogAnalyticsSubscriptionId = '00000000-0000-0000-0000-000000000000
 
 ---
 
-### 6. Security & Compliance
+### 6. Inference API Diagnostic Logging
+
+AI Citadel configures **per-API diagnostic logging** on every inference API (Universal LLM API and Azure OpenAI API). Two diagnostic channels are provisioned:
+
+| Channel | Purpose | Default Destination |
+|---------|---------|--------------------|
+| **Azure Monitor** (`azuremonitor`) | LLM-aware diagnostics sent to Log Analytics | Azure Monitor / Log Analytics |
+| **Application Insights** (`applicationinsights`) | Request/response tracing with custom headers | Application Insights |
+
+Both channels are fully configurable through the deployment parameter files.
+
+#### Azure Monitor Log Settings (`azureMonitorLogSettings`)
+
+Controls frontend/backend request and response header capture, body byte limits, and **LLM-specific** log settings (prompt/completion logging).
+
+**Default values:**
+
+```bicep
+param azureMonitorLogSettings = {
+  frontend: {
+    request:  { headers: [], body: { bytes: 0 } }   // No frontend headers/body captured by default
+    response: { headers: [], body: { bytes: 0 } }
+  }
+  backend: {
+    request:  { headers: [], body: { bytes: 0 } }   // No backend headers/body captured by default
+    response: { headers: [], body: { bytes: 0 } }
+  }
+  largeLanguageModel: {
+    logs: 'enabled'                                  // LLM logging enabled
+    requests:  { messages: 'all', maxSizeInBytes: 262144 }  // Capture all prompt messages (up to 256 KB)
+    responses: { messages: 'all', maxSizeInBytes: 262144 }  // Capture all completion messages (up to 256 KB)
+  }
+}
+```
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `frontend.request.headers` | `[]` | HTTP headers to capture from the client request |
+| `frontend.request.body.bytes` | `0` | Max bytes of client request body to log (`0` = none) |
+| `frontend.response.headers` | `[]` | HTTP headers to capture from the response to client |
+| `frontend.response.body.bytes` | `0` | Max bytes of response body to log (`0` = none) |
+| `backend.request.headers` | `[]` | HTTP headers to capture from the backend request |
+| `backend.request.body.bytes` | `0` | Max bytes of backend request body to log (`0` = none) |
+| `backend.response.headers` | `[]` | HTTP headers to capture from backend response |
+| `backend.response.body.bytes` | `0` | Max bytes of backend response body to log (`0` = none) |
+| `largeLanguageModel.logs` | `'enabled'` | Enable or disable LLM-specific logging (`'enabled'` / `'disabled'`) |
+| `largeLanguageModel.requests.messages` | `'all'` | Which prompt messages to capture (`'all'` / `'none'`) |
+| `largeLanguageModel.requests.maxSizeInBytes` | `262144` | Maximum prompt payload size in bytes (256 KB) |
+| `largeLanguageModel.responses.messages` | `'all'` | Which completion messages to capture (`'all'` / `'none'`) |
+| `largeLanguageModel.responses.maxSizeInBytes` | `262144` | Maximum completion payload size in bytes (256 KB) |
+
+**Example — Production with header capture and reduced LLM payload:**
+```bicep
+param azureMonitorLogSettings = {
+  frontend: {
+    request:  { headers: [ 'Content-type', 'User-agent' ], body: { bytes: 0 } }
+    response: { headers: [ 'x-ms-region' ], body: { bytes: 0 } }
+  }
+  backend: {
+    request:  { headers: [ 'Content-type' ], body: { bytes: 8192 } }
+    response: { headers: [ 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ], body: { bytes: 8192 } }
+  }
+  largeLanguageModel: {
+    logs: 'enabled'
+    requests:  { messages: 'all', maxSizeInBytes: 131072 }  // 128 KB limit
+    responses: { messages: 'all', maxSizeInBytes: 131072 }
+  }
+}
+```
+
+**Example — Disable LLM prompt/completion logging (privacy-sensitive environments):**
+```bicep
+param azureMonitorLogSettings = {
+  frontend: {
+    request:  { headers: [], body: { bytes: 0 } }
+    response: { headers: [], body: { bytes: 0 } }
+  }
+  backend: {
+    request:  { headers: [], body: { bytes: 0 } }
+    response: { headers: [], body: { bytes: 0 } }
+  }
+  largeLanguageModel: {
+    logs: 'disabled'
+    requests:  { messages: 'none', maxSizeInBytes: 0 }
+    responses: { messages: 'none', maxSizeInBytes: 0 }
+  }
+}
+```
+
+---
+
+#### Application Insights Log Settings (`appInsightsLogSettings`)
+
+Controls which HTTP headers are captured and how many bytes of request/response body are logged to Application Insights for all inference APIs.
+
+**Default values:**
+
+```bicep
+param appInsightsLogSettings = {
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
+  body: { bytes: 0 }  // No body captured by default
+}
+```
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `headers` | `[ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]` | HTTP headers captured in both frontend and backend request/response traces |
+| `body.bytes` | `0` | Max bytes of request/response body to log (`0` = none) |
+
+**Example — Capture up to 8 KB of body content:**
+```bicep
+param appInsightsLogSettings = {
+  headers: [ 'Content-type', 'User-agent', 'x-ms-region', 'x-ratelimit-remaining-tokens', 'x-ratelimit-remaining-requests' ]
+  body: { bytes: 8192 }
+}
+```
+
+**Example — Minimal header capture for cost-sensitive environments:**
+```bicep
+param appInsightsLogSettings = {
+  headers: [ 'Content-type' ]
+  body: { bytes: 0 }
+}
+```
+
+---
+
+#### Recommended Settings by Environment
+
+| Setting | Development | Staging | Production |
+|---------|-------------|---------|------------|
+| **Azure Monitor LLM logs** | `'enabled'` | `'enabled'` | `'enabled'` (or `'disabled'` for PII-sensitive workloads) |
+| **LLM messages capture** | `'all'` | `'all'` | `'all'` or `'none'` |
+| **LLM max payload (bytes)** | `262144` (256 KB) | `262144` (256 KB) | `131072`–`262144` (128–256 KB) |
+| **App Insights body bytes** | `8192` (8 KB) | `0` | `0` |
+| **App Insights headers** | All 5 defaults | All 5 defaults | All 5 defaults |
+
+> **Note:** Increasing body byte capture or LLM payload sizes will increase Log Analytics and Application Insights ingestion costs. For production environments, balance observability needs against cost and data-sensitivity requirements.
+
+---
+
+### 7. Security & Compliance
 
 #### Entra ID Authentication
 
