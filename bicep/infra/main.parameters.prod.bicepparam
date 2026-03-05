@@ -24,6 +24,7 @@ param apimSkuUnits = 2
 
 // Higher capacity for production workloads
 param cosmosDbRUs = 3000
+param cosmosDbEnableFreeTier = false
 param eventHubCapacityUnits = 5
 
 // Enable monitoring dashboards

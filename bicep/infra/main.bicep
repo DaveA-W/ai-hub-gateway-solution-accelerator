@@ -325,6 +325,9 @@ param eventHubCapacityUnits int = 1
 @description('Cosmos DB throughput in Request Units (RUs).')
 param cosmosDbRUs int = 400
 
+@description('Cosmos DB uses subscription\'s free tier discount') // only one available per subscription - see https://learn.microsoft.com/azure/cosmos-db/free-tier
+param cosmosDbEnableFreeTier bool = false
+
 @description('Logic Apps SKU capacity units.')
 param logicAppsSkuCapacityUnits int = 1
 
@@ -1042,6 +1045,7 @@ module cosmosDb './modules/cosmos-db/cosmos-db.bicep' = {
     dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
     dnsZoneResourceId: existingCosmosDbDnsZoneId
     throughput: cosmosDbRUs
+    enableFreeTier: cosmosDbEnableFreeTier
     publicAccess: cosmosDbPublicAccess
   }
 }

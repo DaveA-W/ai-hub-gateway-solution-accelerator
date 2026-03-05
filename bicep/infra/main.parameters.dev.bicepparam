@@ -23,6 +23,7 @@ param apimSkuUnits = 1
 
 // Minimal capacity for dev
 param cosmosDbRUs = 400
+param cosmosDbEnableFreeTier = true
 param eventHubCapacityUnits = 1
 
 // Enable dashboards for monitoring during development
