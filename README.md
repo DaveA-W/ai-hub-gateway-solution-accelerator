@@ -280,6 +280,7 @@ Master AI Citadel Governance Hub implementation and operations with our detailed
 | Guide | Description |
 |-------|-------------|
 | [**🆕 LLM Backend Onboarding Guide**](./bicep/infra/llm-backend-onboarding/README.md) | Independent LLM backend routing deployment with load balancing and failover |
+| [**🆕 APIM Gateway Upgrade Guide**](./bicep/infra/apim-gateway-upgrade/README.md) | Update gateway policies, APIs, backends, diagnostics, and named values on an existing APIM instance without re-provisioning infrastructure |
 
 ### 🔧 **Use-case Onboarding**
 
