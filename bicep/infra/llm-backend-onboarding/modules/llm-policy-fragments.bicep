@@ -23,9 +23,6 @@ param managedIdentityClientId string
 @description('LLM backend configuration with model metadata for available models response')
 param llmBackendConfig array = []
 
-@description('Whether to generate and deploy the metadata-config fragment for the Unified AI API')
-param deployMetadataConfig bool = false
-
 // ------------------
 //    VARIABLES
 // ------------------
@@ -64,7 +61,7 @@ var modelDeploymentsCode = modelDeploymentsCodeResult.code
 // Inject generated model deployments code into available models template
 var updatedGetAvailableModelsFragmentXml = replace(getAvailableModelsFragmentTemplate, '//{modelDeploymentsCode}', modelDeploymentsCode)
 
-// Generate metadata-config fragment for the Unified AI API (when deployMetadataConfig is true)
+// Generate metadata-config fragment for the Unified AI API
 // Maps each model to its backend pool/direct backend + apiVersion + timeout + inferenceApiVersion
 var metadataModelsResult = reduce(llmBackendConfig, { code: '', seenModels: [] }, (acc, config) =>
   reduce(config.supportedModels, acc, (modelAcc, model) => {
@@ -161,8 +158,9 @@ resource getAvailableModelsFragment 'Microsoft.ApiManagement/service/policyFragm
   }
 }
 
-// Policy Fragment: Metadata Configuration (for Unified AI API)
-resource metadataConfigFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = if (deployMetadataConfig) {
+// Policy Fragment: Metadata Configuration
+// Provides centralized configuration for the Unified AI API with dynamically generated model mappings
+resource metadataConfigFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
   name: 'metadata-config'
   parent: apimService
   properties: {
@@ -188,8 +186,8 @@ output setTargetBackendPoolFragmentName string = setTargetBackendPoolFragment.na
 @description('Name of the get-available-models fragment')
 output getAvailableModelsFragmentName string = getAvailableModelsFragment.name
 
-@description('Name of the metadata-config fragment (empty if not deployed)')
-output metadataConfigFragmentName string = deployMetadataConfig ? metadataConfigFragment.name : ''
+@description('Name of the metadata-config fragment')
+output metadataConfigFragmentName string = metadataConfigFragment.name
 
 @description('Generated backend pools configuration code')
 output backendPoolsCode string = backendPoolsCode

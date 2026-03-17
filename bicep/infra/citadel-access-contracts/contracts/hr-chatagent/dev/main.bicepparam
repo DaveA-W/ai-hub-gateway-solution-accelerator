@@ -6,8 +6,8 @@ using '../../../main.bicep'
 
 param apim = {
   subscriptionId: 'd2e7f84f-2790-4baa-9520-59ae8169ed0d'
-  resourceGroupName: 'rg-ai-hub-citadel-dev-31'
-  name: 'apim-icerk5vrptwxm'
+  resourceGroupName: 'rg-ai-hub-citadel-dev-45'
+  name: 'apim-o3f2kanzvey6q'
 }
 
 param keyVault = {
@@ -25,7 +25,7 @@ param useCase = {
 }
 
 param apiNameMapping = {
-  LLM: ['universal-llm-api', 'azure-openai-api']
+  LLM: ['universal-llm-api', 'azure-openai-api', 'unified-ai-api']
 }
 
 param services = [
@@ -45,8 +45,8 @@ param useTargetFoundry = true
 param foundry = {
   subscriptionId: 'd2e7f84f-2790-4baa-9520-59ae8169ed0d'
   resourceGroupName: 'rg-foundry-agent-spoke-01'
-  accountName: 'msf-foundry-agent-spoke-01'
-  projectName: 'crm-support-agent'
+  accountName: 'msf-foundry-agent-spoke-02'
+  projectName: 'HR-ChatAgent2'
 }
 
 param foundryConfig = {

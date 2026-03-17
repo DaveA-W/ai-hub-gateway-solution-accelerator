@@ -93,6 +93,7 @@ param llmBackendConfig = [
     supportedModels: [
       { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
       { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
+      { name: 'gpt-4.1', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-04-14', retirementDate: '2026-10-14', apiVersion: '2025-04-01-preview', timeout: 180 }
       { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
       { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
       { name: 'text-embedding-3-large', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '1', retirementDate: '2027-04-14' }
@@ -148,16 +149,3 @@ param llmBackendConfig = [
 // Recommended: true for production environments
 // ============================================================================
 param configureCircuitBreaker = true
-
-// ============================================================================
-// OPTIONAL: Unified AI API Metadata Configuration
-// ============================================================================
-// Enable this to generate and deploy the metadata-config fragment used by
-// the Unified AI API. This fragment centralizes model routing, API version,
-// and timeout configuration. Set to true when you have the Unified AI API
-// deployed and want onboarding to update its model routing.
-//
-// When false (default), only the shared fragments (set-backend-pools,
-// set-target-backend-pool, set-backend-authorization) are generated.
-// ============================================================================
-param deployMetadataConfig = false

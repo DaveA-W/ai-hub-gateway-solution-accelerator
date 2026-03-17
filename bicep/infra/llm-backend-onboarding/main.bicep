@@ -69,9 +69,6 @@ param llmBackendConfig array
 @description('Whether to configure circuit breaker for backends (recommended for production)')
 param configureCircuitBreaker bool = true
 
-@description('Whether to generate and deploy the metadata-config fragment for Unified AI API routing. Enable this when you have the Unified AI API deployed and want the onboarding to update its model routing configuration.')
-param deployMetadataConfig bool = false
-
 // @description('Whether to deploy the Universal LLM API (set to false if API already exists)')
 // param deployUniversalLlmApi bool = true
 
@@ -146,7 +143,6 @@ module llmPolicyFragments 'modules/llm-policy-fragments.bicep' = {
     policyFragmentConfig: llmBackendPools.outputs.policyFragmentConfig
     managedIdentityClientId: managedIdentity.properties.clientId
     llmBackendConfig: llmBackendConfig
-    deployMetadataConfig: deployMetadataConfig
   }
 }
 
@@ -197,4 +193,5 @@ output policyFragments object = {
   setBackendAuthorization: llmPolicyFragments.outputs.setBackendAuthorizationFragmentName
   setTargetBackendPool: llmPolicyFragments.outputs.setTargetBackendPoolFragmentName
   getAvailableModels: llmPolicyFragments.outputs.getAvailableModelsFragmentName
+  metadataConfig: llmPolicyFragments.outputs.metadataConfigFragmentName
 }
