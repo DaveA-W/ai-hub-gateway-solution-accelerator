@@ -1,13 +1,13 @@
 using '../../../main.bicep'
 
 // ============================================================================
-// Security JWT Auth - Enforced JWT + API Key across all endpoints - Generated from JWT Authentication Testing Notebook
+// Security JWT Auth - Enforced Valid JWT + API Key across all endpoints - Generated from JWT Authentication Testing Notebook
 // ============================================================================
 
 param apim = {
-  subscriptionId: 'REPLACE'
-  resourceGroupName: 'REPLACE'
-  name: 'REPLACE'
+  subscriptionId: 'd2e7f84f-2790-4baa-9520-59ae8169ed0d'
+  resourceGroupName: 'rg-ai-hub-citadel-dev-47'
+  name: 'apim-wbihmsiylbhrm'
 }
 
 param keyVault = {
@@ -37,7 +37,7 @@ param services = [
   }
 ]
 
-param productTerms = 'JWT Authentication Access Contract - Security JWT Auth - Enforced JWT + API Key across all endpoints'
+param productTerms = 'JWT Authentication Access Contract - Security JWT Auth - Enforced Valid JWT + API Key across all endpoints'
 
 // Azure AI Foundry Integration (disabled)
 param useTargetFoundry = false

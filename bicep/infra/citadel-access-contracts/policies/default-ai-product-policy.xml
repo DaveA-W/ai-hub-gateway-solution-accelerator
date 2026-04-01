@@ -12,7 +12,7 @@
         <include-fragment fragment-id="set-llm-requested-model" />
         
         <!-- Setting allowed models variable (comma-separated list) -->
-        <set-variable name="allowedModels" value="gpt-4o,deepseek-r1,gpt-4.1,phi-4" />
+        <set-variable name="allowedModels" value="gpt-4o,deepseek-r1,gpt-4.1,gpt-5.4-mini" />
         
         <!-- Validate model access based on allowedModels -->
         <include-fragment fragment-id="validate-model-access" />

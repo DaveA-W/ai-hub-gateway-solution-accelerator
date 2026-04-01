@@ -64,20 +64,26 @@ az ad group create --display-name "Citadel-AI-Gateway-Model-Readers" --mail-nick
 
 Note the group's `id` (object ID) from the output.
 
+```bash
+az ad group list --filter "displayName eq 'Citadel-AI-Gateway-Model-Readers'" --query "[0].id" --output tsv
+```
+
 ### Step 2: Assign the Gateway's App Role to the Group
 
-Assign the gateway's `Task.ReadWrite` app role to the group. This is a one-time operation.
-For fine-grained access, create separate groups per role (e.g., `Citadel-AI-Gateway-Models` for `Models.Read`):
+For fine-grained access, we will create a app-role assignment for model access (e.g., `Citadel-AI-Gateway-Model-Readers` for `Models.Read`):
 
-```bash
-# Get the gateway app's service principal ID
+```powershell
+# Get the gateway app's service principal ID (created manually or via the provided script in bicep\infra\entra-id-setup\setup.ps1)
 $gatewaySpId = az ad sp list --filter "appId eq '{gateway-app-id}'" --query "[0].id" --output tsv
+echo "Gateway Service Principal ID: $gatewaySpId"
 
 # Get the desired app role ID (e.g., Task.ReadWrite, Models.Read, MCP.Read, Agent.Read)
-$roleId = az ad app show --id {gateway-app-object-id} --query "appRoles[?value=='Models.Read'].id" --output tsv
+$roleId = az ad app show --id '{gateway-app-id}' --query "appRoles[?value=='Models.Read'].id" --output tsv
+echo "Role ID: $roleId"
 
 # Get the group's object ID
 $groupId = az ad group show --group "Citadel-AI-Gateway-Model-Readers" --query "id" --output tsv
+echo "Group ID: $groupId"
 
 # Assign the app role to the group
 @{ principalId = $groupId; resourceId = $gatewaySpId; appRoleId = $roleId } | ConvertTo-Json | Set-Content -Path body.json
@@ -113,7 +119,7 @@ az ad group member add --group "Citadel-AI-Gateway-Model-Readers" --member-id $m
 
 **Verify membership:**
 ```bash
-az ad group member list --group "Citadel-AI-Gateway-Model-Readers" --query "[].{name:displayName, type:@odata.type, id:id}" --output table
+az ad group member list --group "Citadel-AI-Gateway-Model-Readers" --query "[].{name:displayName, userId:id, user:userPrincipalName}" --output table 
 ```
 
 **Remove a client (offboarding):**

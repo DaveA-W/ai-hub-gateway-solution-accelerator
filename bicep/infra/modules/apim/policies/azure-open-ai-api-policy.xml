@@ -94,6 +94,7 @@
     </backend>
     <outbound>
         <base />
+        <include-fragment fragment-id="diagnostic-headers" />
     </outbound>
     <on-error>
         <base />
@@ -105,5 +106,6 @@
         -->
         
         <include-fragment fragment-id="raise-throttling-events" />
+        <include-fragment fragment-id="diagnostic-headers" />
     </on-error>
 </policies>

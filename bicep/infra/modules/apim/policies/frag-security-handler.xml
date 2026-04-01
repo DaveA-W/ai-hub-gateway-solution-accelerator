@@ -12,7 +12,8 @@
         Input Variables:
         - api-key header: API key for subscription-based authentication
         - Authorization header: Bearer token for JWT authentication
-        - jwtRequired (optional): Set by product policy to "true" to require JWT in addition to API key
+        - jwtRequired (optional): Set by product policy to "true" to enforce JWT validation in addition to API key.
+                                    When not set or "false", JWT validation is skipped even if a Bearer token is present.
         - jwtAudience (optional): Custom audience override. Falls back to {{JWT-AppRegistrationId}} named value
         - jwtIssuer (optional): Custom issuer override. Falls back to {{JWT-Issuer}} named value
         - jwtOpenIdConfigUrl (optional): Custom OpenID config URL override. Falls back to {{JWT-OpenIdConfigUrl}} named value
@@ -77,15 +78,9 @@
     <set-variable name="_nv-jwt-openid-config" value="{{JWT-OpenIdConfigUrl}}" />
     <set-variable name="_nv-jwt-issuer" value="{{JWT-Issuer}}" />
 
-    <!-- JWT validation (when jwtRequired is set to "true" by product policy OR when JWT is provided) -->
+    <!-- JWT validation (only when jwtRequired is set to "true" by product policy) -->
     <choose>
-        <when condition="@{
-            var jwtRequired = context.Variables.GetValueOrDefault<string>("jwtRequired", "false");
-            var authType = context.Variables.GetValueOrDefault<string>("auth-type", "none");
-            // Validate JWT if: (1) product requires it, or (2) a Bearer token was provided
-            return jwtRequired.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                   authType.Contains("jwt");
-        }">
+        <when condition="@(context.Variables.GetValueOrDefault<string>("jwtRequired", "false").Equals("true", StringComparison.OrdinalIgnoreCase))">
             <!-- Check if JWT Bearer token is actually present -->
             <choose>
                 <when condition="@{
