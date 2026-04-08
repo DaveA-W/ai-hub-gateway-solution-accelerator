@@ -20,6 +20,8 @@ Notes:
 | **Redis Cache** | APIM cache entity backed by Azure Managed Redis (for semantic caching) |
 | **Embeddings Backend** | APIM backend targeting AI Foundry embeddings endpoint (for semantic caching) |
 
+>**NOTE**: It is very important depending on the gab between the newer gateway implementation and the existing one, try to make the initial run of this upgrade deployment with as many feature flags turned **on** as possible to ensure the APIM instance is fully updated, this will mean that backend routing configurations must be in place as well. Use this in non-production environment first to detect any potential issues before applying to production.
+
 ## What this deployment does NOT do
 
 - Provision a new APIM service instance
