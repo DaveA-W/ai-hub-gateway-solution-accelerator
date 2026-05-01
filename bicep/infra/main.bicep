@@ -80,12 +80,6 @@ param usageProcessingLogicAppName string = ''
 @description('Name of the Storage Account. Leave blank to use default naming conventions.')
 param storageAccountName string = ''
 
-@description('Name of the Azure Language service. Leave blank to use default naming conventions.')
-param languageServiceName string = ''
-
-@description('Name of the Azure Content Safety service. Leave blank to use default naming conventions.')
-param aiContentSafetyName string = ''
-
 @description('Name of the API Center service. Leave blank to use default naming conventions.')
 param apicServiceName string = ''
 
@@ -192,12 +186,6 @@ param cosmosDbPrivateEndpointName string = ''
 @description('Event Hub private endpoint name. Leave blank to use default naming conventions.')
 param eventHubPrivateEndpointName string = ''
 
-@description('Name of the Azure Language service private endpoint. Leave blank to use default naming conventions.')
-param languageServicePrivateEndpointName string = ''
-
-@description('Name of the Azure Content Safety service private endpoint. Leave blank to use default naming conventions.')
-param aiContentSafetyPrivateEndpointName string = ''
-
 @description('API Management V2 private endpoint name. Leave blank to use default naming conventions.')
 param apimV2PrivateEndpointName string = ''
 
@@ -229,14 +217,6 @@ param cosmosDbPublicAccess string = 'Disabled'
 @description('Event Hub public network access. Needed to be Enabled when using APIM v2 SKUs during provisioning')
 @allowed([ 'Enabled', 'Disabled' ]) 
 param eventHubNetworkAccess string = 'Enabled'
-
-@description('Azure Language service external network access.')
-@allowed([ 'Enabled', 'Disabled' ])
-param languageServiceExternalNetworkAccess string = 'Disabled'
-
-@description('Azure Content Safety external network access.')
-@allowed([ 'Enabled', 'Disabled' ])
-param aiContentSafetyExternalNetworkAccess string = 'Disabled'
 
 @description('AI Foundry external network access.')
 @allowed([ 'Enabled', 'Disabled' ])
@@ -273,9 +253,6 @@ param enableAIGatewayPiiRedaction bool = true
 
 @description('Enable OpenAI realtime capabilities')
 param enableOpenAIRealtime bool = true
-
-@description('Enable AI Foundry integration.')
-param enableAIFoundry bool = true
 
 @description('Enable Microsoft Entra ID authentication for API Management.')
 param entraAuth bool = true
@@ -327,12 +304,6 @@ param cosmosDbRUs int = 400
 
 @description('Logic Apps SKU capacity units.')
 param logicAppsSkuCapacityUnits int = 1
-
-@description('Azure Language service SKU name.')
-param languageServiceSkuName string = 'S'
-
-@description('Azure Content Safety service SKU name.')
-param aiContentSafetySkuName string = 'S0'
 
 @description('SKU for the API Center service.')
 @allowed(['Free', 'Standard'])
@@ -433,7 +404,7 @@ param aiSearchInstances array = [
   // }
 ]
 
-@description('AI Foundry instances configuration array.')
+@description('AI Foundry instances configuration array. The first element (index 0) is the **primary** Foundry resource. The primary Foundry powers the APIM AI Gateway content safety and PII processing capabilities (via the AI Services unified endpoint) AND can also host LLM model deployments. Add more entries to deploy additional Foundry resources in different regions for additional LLM capacity / regional routing. All entries can host LLM deployments declared in aiFoundryModelsConfig.')
 param aiFoundryInstances array = [
   {
     name: !empty(aiFoundryResourceName) ? aiFoundryResourceName : ''
@@ -670,7 +641,12 @@ var llmBackendConfig = [for (instance, i) in aiFoundryInstances: {
 }]
 
 var primaryFoundryName = !empty(aiFoundryInstances[0].name) ? aiFoundryInstances[0].name : 'aif-${resourceToken}-0'
-var primaryFoundryEmbeddingsBackendUrl = 'https://${primaryFoundryName}.cognitiveservices.azure.com/openai/deployments/${primaryFoundryEmbeddingModelName}/embeddings'
+// Primary Foundry endpoint - serves APIM AI Gateway as both:
+//   1. Backend URL for `content-safety-backend` (Content Safety API)
+//   2. Named-value `piiServiceUrl` (Language Service / PII detection API)
+// Both APIs are exposed on the AI Services account base endpoint.
+var primaryFoundryEndpoint = 'https://${primaryFoundryName}.cognitiveservices.azure.com/'
+var primaryFoundryEmbeddingsBackendUrl = '${primaryFoundryEndpoint}openai/deployments/${primaryFoundryEmbeddingModelName}/embeddings'
 
 var openAiPrivateDnsZoneName = 'privatelink.openai.azure.com'
 var keyVaultPrivateDnsZoneName = 'privatelink.vaultcore.azure.net'
@@ -846,60 +822,6 @@ module monitoring './modules/monitor/monitoring.bicep' = {
   }
 }
 
-module contentSafety 'modules/ai/cognitiveservices.bicep' = {
-  name: 'ai-content-safety'
-  scope: resourceGroup
-  params: {
-    name: !empty(aiContentSafetyName) ? aiContentSafetyName : '${abbrs.cognitiveServicesAccounts}consafety-${resourceToken}'
-    location: location
-    tags: tags
-    kind: 'ContentSafety'
-    managedIdentityName: apimManagedIdentity.outputs.managedIdentityName
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    vNetLocation: useExistingVnet ? vnetExisting.outputs.location : vnet.outputs.location
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    apimSubnetName: useExistingVnet ? vnetExisting.outputs.apimSubnetName : vnet.outputs.apimSubnetName
-    functionAppSubnetName: useExistingVnet ? vnetExisting.outputs.functionAppSubnetName : vnet.outputs.functionAppSubnetName
-    aiPrivateEndpointName: !empty(aiContentSafetyPrivateEndpointName) ? aiContentSafetyPrivateEndpointName : '${abbrs.cognitiveServicesAccounts}consafety-pe-${resourceToken}'
-    publicNetworkAccess: aiContentSafetyExternalNetworkAccess
-    openAiDnsZoneName: aiCogntiveServicesDnsZoneName
-    sku: {
-      name: aiContentSafetySkuName
-    }
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingCognitiveServicesDnsZoneId
-  }
-}
-
-module languageService 'modules/ai/cognitiveservices.bicep' = {
-  name: 'ai-language-service'
-  scope: resourceGroup
-  params: {
-    name: !empty(languageServiceName) ? languageServiceName : '${abbrs.cognitiveServicesAccounts}language-${resourceToken}'
-    location: location
-    tags: tags
-    kind: 'TextAnalytics'
-    managedIdentityName: apimManagedIdentity.outputs.managedIdentityName
-    vNetName: useExistingVnet ? vnetExisting.outputs.vnetName : vnet.outputs.vnetName
-    vNetLocation: useExistingVnet ? vnetExisting.outputs.location : vnet.outputs.location
-    privateEndpointSubnetName: useExistingVnet ? vnetExisting.outputs.privateEndpointSubnetName : vnet.outputs.privateEndpointSubnetName
-    apimSubnetName: useExistingVnet ? vnetExisting.outputs.apimSubnetName : vnet.outputs.apimSubnetName
-    functionAppSubnetName: useExistingVnet ? vnetExisting.outputs.functionAppSubnetName : vnet.outputs.functionAppSubnetName
-    aiPrivateEndpointName: !empty(languageServicePrivateEndpointName) ? languageServicePrivateEndpointName : '${abbrs.cognitiveServicesAccounts}language-pe-${resourceToken}'
-    publicNetworkAccess: languageServiceExternalNetworkAccess
-    openAiDnsZoneName: aiCogntiveServicesDnsZoneName
-    sku: {
-      name: languageServiceSkuName
-    }
-    vNetRG: useExistingVnet ? vnetExisting.outputs.vnetRG : vnet.outputs.vnetRG
-    dnsZoneRG: !useExistingVnet ? resourceGroup.name : dnsZoneRG
-    dnsSubscriptionId: !empty(dnsSubscriptionId) ? dnsSubscriptionId : subscription().subscriptionId
-    dnsZoneResourceId: existingCognitiveServicesDnsZoneId
-  }
-}
-
 module keyVault './modules/keyvault/keyvault.bicep' = {
   name: 'key-vault'
   scope: resourceGroup
@@ -921,7 +843,13 @@ module keyVault './modules/keyvault/keyvault.bicep' = {
   }
 }
 
-module foundry 'modules/foundry/foundry.bicep' = if(enableAIFoundry) {
+// AI Foundry deployment.
+// The first element of `aiFoundryInstances` is the **primary** Foundry resource. Its endpoint is
+// reused by APIM as the backend for content safety and as the named-value URL for PII / language
+// processing (both APIs are exposed on the unified AI Services endpoint of the account).
+// Additional entries in `aiFoundryInstances` simply provide more regional Foundry resources that
+// can host LLM model deployments declared in `aiFoundryModelsConfig`.
+module foundry 'modules/foundry/foundry.bicep' = {
   name: 'ai-foundry'
   scope: resourceGroup
   params: {
@@ -1038,8 +966,8 @@ module apim './modules/apim/apim.bicep' = {
     eventHubPIIName: eventHub.outputs.eventHubPIIName
     eventHubPIIEndpoint: eventHub.outputs.eventHubEndpoint
     apimSubnetId: useExistingVnet ? vnetExisting.outputs.apimSubnetId : vnet.outputs.apimSubnetId
-    aiLanguageServiceUrl: languageService.outputs.aiServiceEndpoint
-    contentSafetyServiceUrl: contentSafety.outputs.aiServiceEndpoint
+    aiLanguageServiceUrl: primaryFoundryEndpoint
+    contentSafetyServiceUrl: primaryFoundryEndpoint
     apimNetworkType: apimNetworkType
     enablePIIAnonymization: enableAIGatewayPiiRedaction
     enableAIModelInference: enableAIModelInference
@@ -1051,8 +979,8 @@ module apim './modules/apim/apim.bicep' = {
     enableRedisCache: enableManagedRedis
     redisCacheConnectionString: enableManagedRedis ? managedRedis.outputs.redisCacheConnectionString : ''
     redisCacheResourceId: enableManagedRedis ? managedRedis.outputs.redisResourceId : ''
-    enableEmbeddingsBackend: enableManagedRedis && enableAIFoundry
-    embeddingsBackendUrl: enableManagedRedis && enableAIFoundry ? primaryFoundryEmbeddingsBackendUrl : ''
+    enableEmbeddingsBackend: enableManagedRedis
+    embeddingsBackendUrl: enableManagedRedis ? primaryFoundryEmbeddingsBackendUrl : ''
     sku: apimSku
     skuCount: apimSkuUnits
     usePrivateEndpoint: apimV2UsePrivateEndpoint
@@ -1183,7 +1111,7 @@ module apiCenterOnboarding './modules/apim/api-center-onboarding-all.bicep' = if
 }
 
 // Grant AI Foundry resources access to Key Vault (deployed after both Key Vault and Foundry)
-module keyVaultFoundryRbac './modules/keyvault/keyvault-rbac.bicep' = if(enableAIFoundry) {
+module keyVaultFoundryRbac './modules/keyvault/keyvault-rbac.bicep' = {
   name: 'key-vault-foundry-rbac'
   scope: resourceGroup
   params: {
@@ -1200,7 +1128,7 @@ output APIM_NAME string = apim.outputs.apimName
 output APIM_AOI_PATH string = apim.outputs.apimOpenaiApiPath
 output APIM_GATEWAY_URL string = apim.outputs.apimGatewayUrl
 output AZURE_RESOURCE_GROUP string = resourceGroup.name
-output AI_FOUNDRY_SERVICES array = enableAIFoundry ? foundry!.outputs.extendedAIServicesConfig : []
+output AI_FOUNDRY_SERVICES array = foundry.outputs.extendedAIServicesConfig
 output LLM_BACKEND_CONFIG array = llmBackendConfig
 output KEY_VAULT_NAME string = keyVault.outputs.keyVaultName
 output KEY_VAULT_URI string = keyVault.outputs.keyVaultUri

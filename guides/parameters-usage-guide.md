@@ -147,7 +147,6 @@ param apimNetworkType = 'External'
 #### 4. **Feature Flags**
 Enable or disable specific capabilities:
 ```bicep
-param enableAIFoundry = true
 param enableAPICenter = true
 param enableAIGatewayPiiRedaction = true
 ```
@@ -161,7 +160,7 @@ param cosmosDbRUs = 400
 ```
 
 #### 6. **AI Foundry Configuration**
-Configure AI Foundry instances and model deployments:
+Configure AI Foundry instances and model deployments. The first entry in `aiFoundryInstances` is the **primary** Foundry — its endpoint also powers APIM content safety and PII processing policies. Additional entries are optional and provide extra regional Foundry resources for LLM model deployments:
 ```bicep
 param aiFoundryInstances = [...]
 param aiFoundryModelsConfig = [...]
@@ -239,7 +238,6 @@ param logAnalyticsName = 'mycompany-law-prod'
 ```bicep
 using './main.bicep'
 
-param enableAIFoundry = true
 param aiFoundryInstances = [
   {
     name: 'my-foundry-eastus'

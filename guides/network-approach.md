@@ -471,9 +471,7 @@ Although the accelerator deploys services with private endpoints by default with
 | **API Management (StandardV2/PremiumV2)** | `apimV2PublicNetworkAccess` | `true` | `true`, `false` | Allow public network access. Set to `false` to restrict to private endpoint only. |
 | **Cosmos DB** | `cosmosDbPublicAccess` | `Disabled` | `Enabled`, `Disabled` | Public network access for Cosmos DB. Keep `Disabled` for secure deployments. |
 | **Event Hub** | `eventHubNetworkAccess` | `Enabled` | `Enabled`, `Disabled` | Public network access. Note: Must be `Enabled` during initial provisioning for APIM V2 SKUs. |
-| **Azure Language Service** | `languageServiceExternalNetworkAccess` | `Disabled` | `Enabled`, `Disabled` | External network access for PII redaction and text analytics. |
-| **Azure Content Safety** | `aiContentSafetyExternalNetworkAccess` | `Disabled` | `Enabled`, `Disabled` | External network access for content moderation service. |
-| **AI Foundry** | `aiFoundryExternalNetworkAccess` | `Disabled` | `Enabled`, `Disabled` | External network access for AI Foundry resources. |
+| **AI Foundry** | `aiFoundryExternalNetworkAccess` | `Disabled` | `Enabled`, `Disabled` | External network access for the AI Foundry / AI Services resources (also serves Content Safety and Language / PII APIs from the **primary** Foundry account). |
 | **Azure Monitor** | `useAzureMonitorPrivateLinkScope` | `false` | `true`, `false` | Use Private Link Scope for Log Analytics and Application Insights. Requires additional configuration. |
 
 **Configuration Example:**
@@ -485,8 +483,6 @@ param apimV2UsePrivateEndpoint = true
 param apimV2PublicNetworkAccess = false
 param cosmosDbPublicAccess = 'Disabled'
 param eventHubNetworkAccess = 'Disabled'  // Set after initial deployment
-param languageServiceExternalNetworkAccess = 'Disabled'
-param aiContentSafetyExternalNetworkAccess = 'Disabled'
 param aiFoundryExternalNetworkAccess = 'Disabled'
 param useAzureMonitorPrivateLinkScope = true
 ```
