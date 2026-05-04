@@ -241,6 +241,18 @@ resource getAvailableModelsFragment 'Microsoft.ApiManagement/service/policyFragm
   }
 }
 
+// Policy Fragment: Validate Model Access
+// Restricts access to specific models based on the allowedModels variable
+resource validateModelAccessFragment 'Microsoft.ApiManagement/service/policyFragments@2024-06-01-preview' = {
+  name: 'validate-model-access'
+  parent: apimService
+  properties: {
+    description: 'Validates that the requested model is in the allowed models list for the product'
+    format: 'rawxml'
+    value: loadTextContent('./policies/frag-validate-model-access.xml')
+  }
+}
+
 // Policy Fragment: Responses API ID Security (inbound)
 // Enforces per-subscription ownership of OpenAI Responses API response_id values
 // and hydrates routing for GET/DELETE operations on /responses/{id}.
@@ -295,8 +307,17 @@ output setTargetBackendPoolFragmentName string = setTargetBackendPoolFragment.na
 @description('Name of the get-available-models fragment')
 output getAvailableModelsFragmentName string = getAvailableModelsFragment.name
 
+@description('Name of the validate-model-access fragment')
+output validateModelAccessFragmentName string = validateModelAccessFragment.name
+
 @description('Name of the metadata-config fragment')
 output metadataConfigFragmentName string = metadataConfigFragment.name
+
+@description('Name of the responses-id-security fragment')
+output responsesIdSecurityFragmentName string = responsesIdSecurityFragment.name
+
+@description('Name of the responses-id-cache-store fragment')
+output responsesIdCacheStoreFragmentName string = responsesIdCacheStoreFragment.name
 
 @description('Generated backend pools configuration code')
 output backendPoolsCode string = backendPoolsCode
