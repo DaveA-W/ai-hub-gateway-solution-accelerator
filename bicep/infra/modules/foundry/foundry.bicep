@@ -160,7 +160,7 @@ resource foundryResources 'Microsoft.CognitiveServices/accounts@2026-01-15-previ
 
     publicNetworkAccess: publicNetworkAccess
     networkAcls: {
-      defaultAction: 'Allow'
+      defaultAction: 'Deny'
       bypass: 'AzureServices'
       ipRules: []
       virtualNetworkRules: []
@@ -191,6 +191,9 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-pre
   properties: {
     description: 'Citadel Governance Hub default project for AI Evaluation default LLMs'
   }
+  dependsOn: [
+    privateEndpoints
+  ]
 }]
 
 
@@ -279,6 +282,9 @@ module modelDeployments 'deployments.bicep' = [for (config, i) in aiServicesConf
     cognitiveServiceName: foundryResources[i].name
     modelsConfig: filter(modelsConfig, model => !contains(model, 'aiservice') || model.aiservice == foundryResources[i].name )
   }
+  dependsOn: [
+    privateEndpoints
+  ]
 }]
 
 // Private endpoints for AI Foundry instances (with all 3 required DNS zones)
@@ -298,9 +304,7 @@ module privateEndpoints '../networking/private-endpoint-multi-dns.bicep' = [for 
     dnsZoneResourceIds: dnsZoneResourceIds
     tags: tags
   }
-  dependsOn: [
-    modelDeployments
-  ]
+  dependsOn: []
 }]
 
 
