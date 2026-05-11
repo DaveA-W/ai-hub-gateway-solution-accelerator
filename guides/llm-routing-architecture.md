@@ -10,9 +10,11 @@ The following APIs are configured out-of-the-box for handling LLM requests:
 
 | API | Path | Use Case |
 |-----|------|----------|
-| **Unified AI API** | `/unified-ai/*` | **RECOMMENDED** Single wildcard endpoint supporting all API types (OpenAI, Inference, Responses, Gemini) with dynamic routing |
+| **Unified AI API** | `/unified-ai/*` | **RECOMMENDED** Single wildcard endpoint supporting all API types (OpenAI, Inference, Responses, Gemini, OpenAI-Compatible) with dynamic routing |
 | **Universal LLM API** | `/models/*` | OpenAI-compatible inference endpoints that supports various models |
 | **Azure OpenAI API** | `/openai/deployments/{deployment-id}/*` | Azure OpenAI SDK compatibility |
+
+The Unified AI API includes an **OpenAI-Compatible path** (`/unified-ai/v1/*`) that allows clients to use standard OpenAI SDKs without modification. See the [OpenAI-Compatible API Guide](openai-compatible-api-guide.md) for details.
 
 The **Universal LLM API** and **Azure OpenAI API** share the same underlying routing fragments. The **Unified AI API** extends these with additional fragments for dynamic path-based routing, centralized configuration caching, and multi-API-type support.
 
@@ -85,10 +87,10 @@ Using policy fragments allows to keep the routing logic modular and reusable acr
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                          LLM Backend Targets                               │
 │                                                                            │
-│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                │
-│   │   Foundry   │      │ Azure OpenAI│      │  External   │                │
-│   │  Endpoint   │      │  Endpoint   │      │  Provider   │                │
-│   └─────────────┘      └─────────────┘      └─────────────┘                │
+│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌───────────┐  │
+│   │   Foundry   │      │ Azure OpenAI│      │   Amazon    │      │ External  │  │
+│   │  Endpoint   │      │  Endpoint   │      │  Bedrock    │      │ Provider  │  │
+│   └─────────────┘      └─────────────┘      └─────────────┘      └───────────┘  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -127,15 +129,15 @@ The Unified AI API uses a wildcard catch-all (`/*`) to handle all request patter
                               │ API Type    │
                               │ Detection   │
                               └──────┬──────┘
-            ┌─────────┬──────────┬───┴───┬──────────┬────────────┐
-            ▼         ▼          ▼       ▼          ▼            ▼
-       ┌─────────┐┌────────┐┌────────┐┌────────┐┌──────────┐┌──────────┐
-       │ openai  ││infer-  ││respon- ││respon- ││openai-v1 ││gemini-   │
-       │         ││ence    ││ses     ││ses-v1  ││          ││openai    │
-       │/openai/ ││/models/││/openai/││/openai/││/openai/  ││/v1beta/  │
-       │deploy...││chat/.. ││respon..││v1/resp.││v1/deploy.││openai/.. │
-       └────┬────┘└───┬────┘└───┬────┘└───┬────┘└────┬─────┘└────┬─────┘
-            └─────────┴─────────┴────┬────┴──────────┴────────────┘
+            ┌─────────┬──────────┬───┴───┬──────────┬────────────┬────────────┐
+            ▼         ▼          ▼       ▼          ▼            ▼            ▼
+       ┌─────────┐┌────────┐┌────────┐┌────────┐┌──────────┐┌──────────┐┌──────────┐
+       │ openai  ││infer-  ││respon- ││respon- ││openai-v1 ││gemini-   ││bedrock   │
+       │         ││ence    ││ses     ││ses-v1  ││          ││openai    ││          │
+       │/openai/ ││/models/││/openai/││/openai/││/openai/  ││/v1beta/  ││/model/   │
+       │deploy...││chat/.. ││respon..││v1/resp.││v1/deploy.││openai/.. ││converse  │
+       └────┬────┘└───┬────┘└───┬────┘└───┬────┘└────┬─────┘└────┬─────┘└────┬─────┘
+            └─────────┴─────────┴────┬────┴──────────┴────────────┴───────────┘
                                      ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                         Backend Pool Selection                             │
@@ -146,10 +148,10 @@ The Unified AI API uses a wildcard catch-all (`/*`) to handle all request patter
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                          LLM Backend Targets                               │
 │                                                                            │
-│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                │
-│   │   Foundry   │      │ Azure OpenAI│      │  External   │                │
-│   │  Endpoint   │      │  Endpoint   │      │  Provider   │                │
-│   └─────────────┘      └─────────────┘      └─────────────┘                │
+│   ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐  │
+│   │   Foundry   │      │ Azure OpenAI│      │   Amazon    │      │ External    │  │
+│   │  Endpoint   │      │  Endpoint   │      │  Bedrock    │      │ Provider    │  │
+│   └─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -185,6 +187,34 @@ Logic:
 - If not found, scans the URL path for `/deployments/{model}/` segment (wildcard operations)
 - If not found, attempts to extract from request body `model` field (Inference pattern)
 - Returns empty string if no pattern matches
+
+#### Step 1.5: Responses API ID Security (`responses-id-security` / `responses-id-cache-store`)
+
+The OpenAI **Responses API** (`POST /responses`, `GET /responses/{response_id}`, `GET /responses/{response_id}/input_items`, `DELETE /responses/{response_id}`) is stateful: a `response_id` returned by the backend can be re-used by the client to fetch or chain (`previous_response_id`) prior outputs. To prevent **cross-subscription access** to those server-side conversations, the gateway adds a single shared pair of fragments that are wired into all three API surfaces (Azure OpenAI API, Universal LLM API, Unified AI API):
+
+| Fragment | Stage | Responsibility |
+|---|---|---|
+| `responses-id-security` | inbound | Detects `/responses*` routes, resolves the `response_id` (URL path or `previous_response_id` body), looks up its owner in APIM cache, returns **403** on subscription mismatch and **404** when no cache entry exists for a GET/DELETE. For GET/DELETE it also **hydrates `requestedModel`** from the cache so model-based routing keeps working for those previously model-less operations. |
+| `responses-id-cache-store` | outbound | After a successful `POST /responses`, parses the response body, extracts `id`, and writes `key=response-id-{id}` → `value=<subscriptionId>\|<requestedModel>\|<userId>` to APIM internal cache (24h TTL). |
+
+Cache contract:
+
+```
+key   = "response-id-" + response_id
+value = "<subscriptionId>|<requestedModel>|<userId>"   // userId from JWT 'azp' claim, falling back to subscription name
+ttl   = 86400 seconds
+```
+
+Routing impact on `set-target-backend-pool`:
+
+- For `POST /responses`, model-based routing is unchanged (model is in body or path).
+- For `GET /responses/{id}` and `DELETE /responses/{id}`, the inbound fragment hydrates `requestedModel` from the cache, so `set-target-backend-pool` resolves the **same backend pool** that served the original `POST` — guaranteeing consistent per-conversation backend affinity without any new branches in `set-target-backend-pool` itself.
+- For Unified AI, an `apiTypeOverrideBackend` may also be configured for the `responses` api-type; the override still wins, but the ownership check runs first.
+
+Diagnostic outputs:
+
+- `x-aihub-response-id-cached` response header echoes the just-cached id after a successful POST.
+- Trace source `Responses-API-Security` logs hydration, ownership mismatches, and cache misses.
 
 #### Step 2: Backend Pool Configuration (set-backend-pools)
 
@@ -275,6 +305,7 @@ It is worth noting there is default implementations for Azure LLMs, but this can
 | `non-llm-request` | Skipped (operation-specific) | None |
 | `ai-foundry` | APIM's Managed Identity → Cognitive Services | None (or `/models/` prefix when `skipBackendUrlRewrite` is not set) |
 | `azure-openai` | APIM's Managed Identity → Cognitive Services | Injects `/deployments/{model}/` (skipped when `skipBackendUrlRewrite` is set) |
+| `aws-bedrock` | AWS SigV4 (IAM access keys via named values) | Path constructed as `/model/{model}/converse` by path-builder |
 | `external` | Backend credentials | None |
 
 > **Note:** When the Unified AI API sets `skipBackendUrlRewrite`, the `set-backend-authorization` fragment skips URL rewriting because the `path-builder` fragment handles URI construction instead.
@@ -295,6 +326,7 @@ The `metadata-config` fragment defines the supported API types with their path p
 | `responses-v1` | `/openai/v1/responses` | `/openai/v1/responses` | `v1` | OpenAI Responses API (v1) |
 | `openai-v1` | `/openai/v1` | `/deployments` | `v1` | OpenAI v1 completions |
 | `geminiopenai` | `/v1beta/openai` | `/v1beta/openai` | `v1beta` | Google Gemini OpenAI-compatible |
+| `bedrock` | `/model` | `/model` | `bedrock-2024-04-15` | Amazon Bedrock Converse API |
 
 Each API type can optionally define a `backend` property to override pool-based model routing and route to a specific backend directly (via `apiTypeOverrideBackend`).
 
@@ -328,13 +360,15 @@ Analyzes the incoming request to detect the API type and extract the model. This
 
 **API Type Detection:**
 1. Removes the API path prefix (`/unified-ai`) from the request URL
-2. Matches the remaining path against configured `base-path` patterns in `config-api-types`
-3. Rejects unrecognized paths with a `403 Forbidden` response
+2. Matches the remaining path against configured `base-path` patterns in `config-api-types` using **case-insensitive prefix matching (`StartsWith`)** and selects the **longest matching base-path** so nested prefixes (e.g. `/openai/v1/responses` vs `/openai/v1` vs `/openai`) always resolve to the most specific api-type independent of declaration order
+3. Rejects unrecognized paths with a `403 Forbidden` response (`PathNotAllowed`). For example, `/v2/openai/chat/completions` does **not** match `/openai` and is rejected with 403
 
 **Model Extraction** (in priority order):
-1. **GET/DELETE requests**: Returns `"non-llm-request"` (handled by operation-level policies)
+1. **GET requests, and DELETE on `/responses*`**: Returns `"non-llm-request"` (operation-level policies handle these). For `/responses/{id}` GET/DELETE the model is later **hydrated from the response-id ownership cache** by `responses-id-security` so model-based routing in `set-target-backend-pool` and `path-builder` still selects the original backend.
 2. **Request body**: Extracts `model` field from JSON body
 3. **URL path segment**: Extracts model from path using `api-path-segment` (e.g., `/openai/deployments/{model}/...`)
+
+> **Note**: `request-processor` no longer short-circuits GET/DELETE requests — `api-type`, `api-base-path`, `apiTypeOverrideBackend`, and `skipBackendUrlRewrite` are always populated. This is required so that `path-builder` can correctly construct backend paths such as `{api-base-path}/{response-id}` for Responses API GET/DELETE after `responses-id-security` hydrates the model.
 
 **Output Variables:**
 - `api-type`: Detected API type (e.g., `openai`, `inference`, `geminiopenai`)
@@ -381,6 +415,7 @@ Reconstructs the backend URI from known components based on the detected API typ
 | `geminiopenai` | `{api-base-path}/chat/completions` |
 | `openai-v1` | `{api-base-path}/chat/completions` |
 | `responses` / `responses-v1` | `{api-base-path}` or `{api-base-path}/{response-id}` |
+| `bedrock` | `/model/{model}/converse` |
 
 **Additional Behavior:**
 - Auto-injects `api-version` query parameter for `responses` and `inference` types
@@ -481,7 +516,7 @@ Access contracts (applied at a product level) can restrict which backend pools a
 
 ```xml
 <!-- Product Policy for specific use case -->
-<set-variable name="allowedBackendPools" 
+<se t-variable name="allowedBackendPools" 
               value="gpt-4o-backend-pool,aif-citadel-primary" />
 ```
 
@@ -655,6 +690,38 @@ api-key: <subscription-key>
 6. Path builder constructs: `/v1beta/openai/chat/completions`
 7. Forward to Gemini backend
 
+### Unified AI API — Bedrock Pattern
+
+```http
+POST APIM_GATEWAY/unified-ai/model/us.anthropic.claude-3-5-haiku-20241022-v1:0/converse
+Content-Type: application/json
+api-key: <subscription-key>
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": [{"text": "Hello"}]
+    }
+  ],
+  "inferenceConfig": {
+    "maxTokens": 512,
+    "temperature": 0.5,
+    "topP": 0.9
+  }
+}
+```
+
+**Flow:**
+1. Load & cache metadata config
+2. Request processor detects api-type: `"bedrock"` (path contains `/model`)
+3. Extract model: `"us.anthropic.claude-3-5-haiku-20241022-v1:0"` from path segment
+4. Security handler validates API key
+5. Find pool: `"bedrock-us-east-1"` or direct backend (shared fragment)
+6. Authenticate: AWS SigV4 using IAM access keys from named values
+7. Path builder constructs: `/model/us.anthropic.claude-3-5-haiku-20241022-v1%3A0/converse`
+8. Forward to Bedrock runtime endpoint
+
 ### Unified AI API — Model Discovery
 
 ```http
@@ -679,6 +746,8 @@ api-key: <subscription-key>
 | `401: product_required` | Request not associated with a product subscription | Provide a valid `api-key` header |
 | `429: Too Many Requests` | All backends throttling | Wait for retry-after or add capacity |
 | `503: Backend pool unavailable` | Circuit breaker open | Wait for trip duration to expire |
+| `403: AWS SigV4 auth failure` | Invalid AWS credentials for Bedrock | Verify `aws-access-key`, `aws-secret-key`, and `aws-region` named values contain real credentials (not `NOT_CONFIGURED`) |
+| `500: AWSCredentialsNotConfigured` | AWS named values still set to placeholder defaults | Redeploy with `awsAccessKey`, `awsSecretKey`, `awsRegion` parameters or update named values manually |
 
 **Unified AI Debug Headers:**
 When `enableResponseHeaders` is set to `true` in the product policy, response headers like `UAIG-API-Type`, `UAIG-Backend`, and `UAIG-Final-Path` help trace the routing decisions made by the gateway.
@@ -686,4 +755,5 @@ When `enableResponseHeaders` is set to `true` in the product policy, response he
 ## Related Guides
 
 - [LLM Backend Onboarding](../bicep/infra/llm-backend-onboarding/README.md) - Configure backends
+- [Onboarding New API Types](unified-ai-api-type-onboarding.md) - Add new API types to the Unified AI API
 - [Citadel Access Contracts](citadel-access-contracts.md) - Configure use case access
