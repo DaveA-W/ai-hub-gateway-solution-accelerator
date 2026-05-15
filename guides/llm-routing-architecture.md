@@ -404,11 +404,13 @@ Provides unified authentication across all API endpoints.
 #### Steps 5–8: Shared Fragment Execution
 
 Steps 5 through 8 use the same shared fragments as the Universal LLM and Azure OpenAI APIs:
-- **validate-model-access**: Checks `allowedModels` per product
-- **resolve-model-alias**: If `requestedModel` matches an alias name, replaces it with an underlying real model based on `priority` or `weighted` strategy. Sets `is-alias`, `original-model-alias`, and `alias-models` so the retry block can perform cross-model fallback. No-op when `requestedModel` is not an alias.
-- **set-backend-pools**: Loads backend pool configurations
-- **set-target-backend-pool**: Matches model to pool. For Unified AI, also checks `apiTypeOverrideBackend` — when set, bypasses pool matching and routes to the specified backend directly
-- **set-backend-authorization**: Sets managed identity token and backend service. Skips URL rewriting because `skipBackendUrlRewrite` is set by `request-processor`
+- **validate-model-access**: Checks `allowedModels` per product. Runs against the alias name (when the request used one) so RBAC stays at the contract level.
+- **set-backend-pools**: Loads the gateway's `backendPools` JArray (real pools + alias **virtual pool entries**).
+- **set-target-backend-pool**: Two responsibilities now —
+  1. **Alias resolution.** When `requestedModel` matches an alias virtual pool (`isAlias=true`), the fragment filters the alias members by the inbound API surface's `compatiblePoolTypes`, picks one based on `strategy` (`priority` / `weighted`), sets `is-alias`, `original-model-alias`, the resolved `requestedModel`, the picked member's `targetBackendPool` / `targetPoolType` / `targetAuthType` / `targetAuthConfigNamedValue`, and exposes `alias-fallback-members` (an ordered JArray pre-resolved with each remaining member's poolName / poolType / authType) for the retry block.
+  2. **Direct model→pool match.** When the model is not an alias, the existing pool match logic runs unchanged. For Unified AI, also checks `apiTypeOverrideBackend` — when set, bypasses pool matching and routes to the specified backend directly.
+- **resolve-model-alias**: Slim post-resolution body rewrite — replaces the JSON body's `model` field with `requestedModel` so backends see the real model name. No-op when `is-alias=false`.
+- **set-backend-authorization**: Sets managed identity token / api-key header / SigV4 signing as appropriate, then `set-backend-service`. Skips URL rewriting because `skipBackendUrlRewrite` is set by `request-processor`.
 
 #### Step 9: Path Builder (path-builder)
 
@@ -459,66 +461,92 @@ These operations use the shared `get-available-models` fragment and are handled 
 
 ## Model Aliases
 
-Model aliases let an admin expose a single client-facing name (e.g. `adv-gpt`) that the gateway resolves at runtime to one of several real underlying models (e.g. `gpt-5.4-mini`, `gpt-4.1`). Clients depend only on the alias, while the platform team is free to switch the underlying model line-up — useful for graceful model retirements, A/B testing, and cross-model fallback.
+Model aliases let an admin expose a single client-facing name (e.g. `adv-gpt`, `multi-cloud-claude`) that the gateway resolves at runtime to one of several real underlying models — possibly spanning different cloud providers. Clients depend only on the alias, while the platform team is free to switch the underlying line-up: useful for graceful model retirements, A/B testing, and **cross-provider load balancing / fallback transparent to the client**.
+
+### Aliases are virtual backend pools
+
+Each entry in `modelAliases` becomes a **virtual pool entry inside the same `backendPools` JArray that real pools live in**. The runtime alias resolution and the retry-time member walk both ride on the same `set-target-backend-pool` + retry pipeline that real models use, with no special-case code paths.
+
+| Capability | Direct model | Alias |
+|---|---|---|
+| Pool matching | `set-target-backend-pool` walks `backendPools` for a match on the model name. | Same fragment, but matches the alias's virtual pool entry first (entries with `isAlias=true`). |
+| Strategy | Pool members use APIM-native priority/weight (real APIM Backend Pool resource). | Alias members use **policy-level** priority/weight encoded into the alias virtual pool entry. |
+| Retry / fallback | APIM-native pool-level retry on 429/5xx. | Pool-level retry **plus** alias-fallback walk across remaining members on 429/5xx — supported on the Azure OpenAI API, Universal LLM API, and Unified AI API. |
+| Cross-provider | A direct request to a model is locked to that model's pool. | Alias members can mix Azure OpenAI, Bedrock, Gemini, Anthropic, etc. — fallback walks across providers. |
+| Compatible-pool-types filter | Applied at pool selection. | Applied at member selection, so an alias spanning native + OpenAI-compat surfaces only resolves to members compatible with the inbound surface. Members with no compatible pool are silently skipped. |
+| Body / URL rewrite | Driven by the resolved poolType + operation. | Same — once a member is picked, request takes the same code paths a direct call to that real model would have taken. |
 
 The same alias map is honored consistently across **all three LLM endpoints**:
 
-- **Azure OpenAI API** — `/openai/deployments/{alias}/chat/completions`
-- **Universal LLM API** — `/models/chat/completions` with `"model": "{alias}"` in the body
-- **Unified AI API** — any `/unified-ai/...` path that supplies a model in the body or URL
+- **Azure OpenAI API** — `/openai/deployments/{alias}/chat/completions` (alias members must be `azure-openai` or `ai-foundry` pools).
+- **Universal LLM API** — `/models/chat/completions` with `"model": "{alias}"` (alias members must be OpenAI-compat-capable pool types: `azure-openai`, `ai-foundry`, `aws-bedrock-mantle`, `gemini-openai`).
+- **Unified AI API** — `/unified-ai/v1/chat/completions` (OpenAI-compat surface) and the native prefixes `/unified-ai/bedrock/...`, `/unified-ai/gemini/...`, `/unified-ai/claude/...` (each restricts alias members to its own pool type).
 
-### Shared Resolution Fragment (`resolve-model-alias`)
+### Resolution flow
 
-A single policy fragment is invoked by every API after model extraction and access validation:
+The fragments execute in this order on every API surface:
 
-| API | Step | Notes |
-|---|---|---|
-| Azure OpenAI | After `validate-model-access`, before `set-backend-pools` | Static inline alias map (no metadata-config) |
-| Universal LLM | After `validate-model-access`, before `set-backend-pools` | Static inline alias map (no metadata-config) |
-| Unified AI | After `validate-model-access`, before `set-backend-pools` | Reads from `config-model-aliases` (cached metadata-config); inline map acts as fallback |
+```
+1. validate-model-access      → RBAC against alias name (if used)
+2. set-backend-pools           → loads `backendPools` JArray (real pools + alias virtual pools)
+3. set-target-backend-pool     → ALIAS RESOLUTION + member pick + targeting variables
+                                  + alias-fallback-members for retry
+4. resolve-model-alias         → body rewrite (model field) when is-alias=true; no-op otherwise
+5. set-backend-authorization   → header/SigV4/managed-identity per resolved poolType
+6. path-builder (Unified AI)   → URL rewrite per resolved poolType + operation
+backend retry                  → walks alias-fallback-members on 429/5xx (pre-stream only)
+```
 
-When the requested model matches an alias, the fragment:
-
-1. Sets `original-model-alias` = the alias name and `is-alias` = `true`.
-2. Picks an underlying real model based on `strategy` (`priority` or `weighted`) and overwrites `requestedModel` with it.
-3. Rewrites the JSON body's `model` field if present, so the backend receives the **resolved** model name.
-4. Rewrites the URL path `/deployments/{alias}/...` → `/deployments/{realModel}/...` so URL-based routing (Azure OpenAI / Unified AI `openai` api-type) targets the correct backend deployment.
-5. Exposes `alias-models` (a `JArray` of all underlying models) for downstream cross-model retry logic.
-
-When the requested model is **not** an alias, the fragment is a no-op — direct model selection is preserved unchanged.
+When the requested model is **not** an alias, step 3 falls through to its existing model→pool match logic and step 4 is a no-op — direct routing is preserved unchanged.
 
 ### Resolution Strategies
 
 | Strategy | Behavior | Best For |
 |----------|----------|----------|
-| `priority` (default) | The first model in `models` is always chosen. Other models act as fallback candidates for the Unified AI API retry block. | Production routing with a preferred primary and well-defined hot-spares. |
-| `weighted` | Each request picks a model at random with probability proportional to `weights`. | A/B testing, controlled rollout of a new model, blended traffic across model families. |
+| `priority` (default) | The first compatible member in `models` is always chosen. The remaining compatible members form the fallback list in order. | Production routing with a preferred primary and well-defined hot-spares. |
+| `weighted` | A compatible member is picked at random with probability proportional to `weights`. The remaining compatible members form a fallback list (round-walk after the picked one). | A/B testing, controlled rollout of a new model, blended traffic across model families. |
 
-### Cross-Model Fallback (Unified AI)
+### Cross-Model / Cross-Provider Fallback
 
-The Unified AI API's `<retry>` block is alias-aware: when `is-alias` is `true`, the retry budget is extended by the number of fallback models in the alias. On a transient failure (429 / 5xx) from the currently selected model, the gateway:
+The `<retry>` block in **all three** API policies (Azure OpenAI, Universal LLM v2, Unified AI) is alias-aware. When `is-alias` is `true`, the retry budget is extended by the size of `alias-fallback-members`. On a transient failure (429 / 5xx) from the currently selected member, the policy:
 
-1. Increments `alias-retry-index`.
-2. Switches `requestedModel` to the next model in `alias-models`.
-3. Re-runs `set-target-backend-pool`, `set-backend-authorization`, and `path-builder` so the request is re-issued through the matching backend pool of the new model.
+1. Increments `alias-retry-index` and reads the next entry from `alias-fallback-members`.
+2. Sets `requestedModel`, `targetBackendPool`, `targetPoolType`, `targetAuthType`, `targetAuthConfigNamedValue` directly from that entry — no second pool match needed because the entry is already pre-resolved.
+3. Re-runs `resolve-model-alias` (body rewrite) + `set-backend-authorization` (+ `path-builder` for Unified AI; or `rewrite-uri` for Azure OpenAI).
 
-> **Pre-stream only.** Once the response stream has started, the body is committed and cross-model fallback is not possible. Azure OpenAI and Universal LLM APIs do not implement cross-model fallback today — they perform pool-level retries against the resolved model only.
+> **Pre-stream only.** Once the response stream has started, the body is committed and cross-model fallback is not possible.
+
+### Compatible-pool-types filter on alias members
+
+Each API surface advertises `compatiblePoolTypes` — a CSV of pool types it can route to (set by `request-processor` for the Unified AI API based on the matched api-type, and set inline by the Universal LLM API and Azure OpenAI API policies). The alias resolution step applies this filter to the alias's `members[]` and skips any member whose underlying pools do not match. This means:
+
+- An alias `multi-cloud-chat` that includes `claude-haiku-4-5` (anthropic) + `gpt-4.1` (Azure OpenAI) + `openai.gpt-oss-120b` (aws-bedrock-mantle) called via **Universal LLM** (`/models/chat/completions`) considers only the Azure OpenAI and Bedrock-Mantle members — Anthropic native is filtered out because Universal LLM is OpenAI-compat-only.
+- The same alias called via **Unified AI native** `/claude/v1/messages` considers only the Anthropic member.
+- If the alias has no member compatible with the inbound surface, the request returns `400 alias_no_compatible_member` with the alias name, the surface's compatible CSV, and the total member count for diagnostics.
 
 ### Access Control
 
-The `validate-model-access` fragment runs **before** `resolve-model-alias`. The product policy's `allowedModels` therefore controls access to the **alias name** (the contract-level identifier the client sees), not the underlying real models. Granting `allowedModels = "adv-gpt"` exposes only the alias and keeps the underlying `gpt-5.4-mini` / `gpt-4.1` deployments unreachable through that subscription.
+The `validate-model-access` fragment runs **before** `set-target-backend-pool`. The product policy's `allowedModels` therefore controls access to the **alias name** (the contract-level identifier the client sees), not the underlying real models. Granting `allowedModels = "multi-cloud-claude"` exposes only the alias.
 
 ### Diagnostics
 
 | Source | Where to look |
 |---|---|
-| `original-model-alias`, `is-alias` | APIM trace policy (`Resolve-Model-Alias` source), `UAIG-*` debug headers (Unified AI when `enableResponseHeaders` is true) |
+| `original-model-alias`, `is-alias`, `alias-fallback-members` | APIM trace policy (`Set-Target-Backend-Pool` + `Alias-Fallback` sources), `UAIG-*` debug headers (Unified AI when `enableResponseHeaders` is true) |
 | Resolved model | `requestedModel` variable, `UAIG-Model-Id` header, App Insights `customDimensions.deploymentName` |
-| Cross-model fallback hops | `alias-retry-index` variable, repeated `set-target-backend-pool` traces |
+| Cross-model fallback hops | `alias-retry-index` variable + per-hop `Alias-Fallback` traces (one per fallback hop on every API surface) |
 
 ### Configuration
 
-Aliases are declared in the `modelAliases` array of the LLM Backend Onboarding `.bicepparam` file. Each onboarding deployment regenerates **both** the `metadata-config` JSON (for Unified AI) and the `resolve-model-alias` fragment's inline static map (for Azure OpenAI / Universal LLM) from the same source — keeping the two views in sync. See [LLM Backend Onboarding — Model Aliases](../bicep/infra/llm-backend-onboarding/README.md#model-aliases) for the full property reference and examples.
+Aliases are declared in the `modelAliases` array of the LLM Backend Onboarding `.bicepparam` file. Each onboarding deployment regenerates:
+
+| Output | Purpose |
+|---|---|
+| `set-backend-pools` virtual pool entries (in the `backendPools` JArray) | Runtime alias resolution + retry-time fallback walk. **Sole source of runtime data.** |
+| `get-available-models` JObject entries | First-class alias entries in `GET /deployments` responses. |
+| `metadata-config` (`model-aliases` JSON section) | Informational copy in the cached config (used by tooling that introspects the cache). |
+
+All three are regenerated on every deployment so the views stay in sync. See [LLM Backend Onboarding — Model Aliases](../bicep/infra/llm-backend-onboarding/README.md#model-aliases) for the full property reference, examples, and error-code reference.
 
 ## Backend Pool Types
 
