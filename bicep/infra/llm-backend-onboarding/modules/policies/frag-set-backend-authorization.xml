@@ -89,12 +89,24 @@
                     var host = uri.Host;
 
                     // Create canonical path
+                    // modelId may contain '/' (inference-profile ARNs, e.g.
+                    // arn:aws:bedrock:eu-north-1:123:inference-profile/eu.amazon.nova-lite-v1:0).
+                    // APIM decodes any %2F in Url.Path back to '/', so we cannot rely on the
+                    // first '/' after "model/" to find the modelId boundary. The Bedrock
+                    // operation suffix (converse|converse-stream|invoke|invoke-with-response-stream)
+                    // is always the LAST path segment, so split on the last '/' instead.
+                    // The raw modelId is then percent-encoded (so ':' -> %3A, '/' -> %2F) per
+                    // AWS SigV4 canonical URI rules and the AWS Bedrock REST contract that
+                    // treats {modelId} as a single path parameter.
                     var path = uri.Path;
                     var modelSplit = path.Split(new[] { "model/" }, 2, StringSplitOptions.None);
                     var afterModel = modelSplit.Length > 1 ? modelSplit[1] : "";
-                    var parts = afterModel.Split(new[] { '/' }, 2);
-                    var model = System.Uri.EscapeDataString(parts[0]);
-                    var remainder = parts.Length > 1 ? parts[1] : "";
+                    var lastSlash = afterModel.LastIndexOf('/');
+                    var rawModel = lastSlash > 0 ? afterModel.Substring(0, lastSlash) : afterModel;
+                    var remainder = lastSlash > 0 ? afterModel.Substring(lastSlash + 1) : "";
+                    // Decode first (handles already-encoded inputs), then re-encode so any
+                    // embedded '/' or ':' inside the modelId is percent-encoded.
+                    var model = System.Uri.EscapeDataString(System.Uri.UnescapeDataString(rawModel));
                     var canonicalPath = $"/model/{model}/{remainder}";
 
                     var amzDate = ((DateTime)context.Variables["now"]).ToString("yyyyMMddTHHmmssZ");

@@ -171,7 +171,7 @@ The `set-llm-requested-model` policy fragment extracts the model from the reques
 | **GET/DELETE request** | Any GET or DELETE operation | Returns `"non-llm-request"` (skips model extraction) | All APIs |
 | **`deployment-id` path parameter** | `/deployments/{deployment-id}/...` (named operation) | `/openai/deployments/gpt-4o/chat/completions` | Azure OpenAI API |
 | **`/deployments/{model}/` segment** | Wildcard operation, model between `/deployments/` and next `/` | `/openai/deployments/gpt-4o/chat/completions` (Universal LLM AOAI passthrough) | Universal LLM, Unified AI `/openai/...` |
-| **`/model/{modelId}/` segment** (singular) | AWS Bedrock Converse / Invoke; model between `/model/` and next `/`; URL-decoded | `/unified-ai/bedrock/model/eu.amazon.nova-lite-v1:0/converse` | Unified AI native Bedrock |
+| **`/model/{modelId}/` segment** (singular) | AWS Bedrock Converse / Invoke; model between `/model/` and the LAST `/` (operation suffix); URL-decoded. Supports inference-profile ARNs containing `/` | `/unified-ai/bedrock/model/eu.amazon.nova-lite-v1:0/converse`, `/unified-ai/bedrock/model/arn%3Aaws%3Abedrock%3Aus-east-1%3A123%3Ainference-profile%2Feu.amazon.nova-lite-v1%3A0/converse` | Unified AI native Bedrock |
 | **`/models/{modelId}:method` segment** (plural with `:`) | Gemini native; model between `/models/` and `:` | `/unified-ai/gemini/v1beta/models/gemini-2.5-flash:generateContent` | Unified AI native Gemini |
 | **Request body `model` field** | OpenAI-compat / Anthropic Messages / Inference body | `{"model": "claude-haiku-4-5", ...}` | Universal LLM, Anthropic Messages, OpenAI-compat surfaces |
 

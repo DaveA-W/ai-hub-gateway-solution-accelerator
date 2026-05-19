@@ -197,6 +197,11 @@
             var path = context.Variables.GetValueOrDefault<string>("routing-processed-path", String.Empty);
 
             // bedrock-native: /bedrock/model/{modelId}/{operation}  (e.g. /bedrock/model/us.anthropic.claude/converse)
+            // modelId may contain '/' (inference-profile ARNs, e.g.
+            // arn:aws:bedrock:eu-north-1:123:inference-profile/eu.amazon.nova-lite-v1:0).
+            // Even when clients percent-encode '/' as %2F, APIM decodes it back to '/' in Url.Path.
+            // The operation suffix (converse|converse-stream|invoke|invoke-with-response-stream)
+            // is always the LAST path segment, so split on the LAST '/' instead of the first.
             if (apiType.Equals("bedrock-native", StringComparison.OrdinalIgnoreCase))
             {
                 var marker = "/model/";
@@ -204,8 +209,8 @@
                 if (idx >= 0)
                 {
                     var rest = path.Substring(idx + marker.Length);
-                    var slash = rest.IndexOf('/');
-                    var modelId = slash >= 0 ? rest.Substring(0, slash) : rest;
+                    var slash = rest.LastIndexOf('/');
+                    var modelId = slash > 0 ? rest.Substring(0, slash) : rest;
                     if (!String.IsNullOrEmpty(modelId)) { return System.Uri.UnescapeDataString(modelId); }
                 }
             }

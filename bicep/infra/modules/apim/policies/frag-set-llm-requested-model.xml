@@ -55,16 +55,22 @@
                 }
             }
             
-            // 3. Try AWS Bedrock native Converse/Invoke pattern: /model/{modelId}/converse|invoke
+            // 3. Try AWS Bedrock native Converse/Invoke pattern: /model/{modelId}/{operation}
             //    Singular "/model/" (vs "/models/") disambiguates from Gemini.
-            //    modelId may contain ':' or '.' (e.g. eu.amazon.nova-lite-v1:0); URL-decode in case it was percent-encoded.
+            //    modelId may contain ':', '.' (e.g. eu.amazon.nova-lite-v1:0) or '/'
+            //    (inference-profile ARNs, e.g.
+            //    arn:aws:bedrock:eu-north-1:123:inference-profile/eu.amazon.nova-lite-v1:0).
+            //    Even when the client percent-encodes '/' as %2F, APIM decodes it back to '/'
+            //    in Url.Path, so IndexOf('/') would truncate the ARN. The Bedrock operation
+            //    suffix (converse|converse-stream|invoke|invoke-with-response-stream) is
+            //    always the LAST path segment, so split on the LAST '/' instead.
             var modelSegment = "/model/";
             idx = path.IndexOf(modelSegment, StringComparison.OrdinalIgnoreCase);
             if (idx >= 0)
             {
                 var afterSegment = path.Substring(idx + modelSegment.Length);
-                var slashPos = afterSegment.IndexOf('/');
-                var modelName = slashPos >= 0 ? afterSegment.Substring(0, slashPos) : afterSegment;
+                var slashPos = afterSegment.LastIndexOf('/');
+                var modelName = slashPos > 0 ? afterSegment.Substring(0, slashPos) : afterSegment;
                 if (!string.IsNullOrEmpty(modelName))
                 {
                     return System.Net.WebUtility.UrlDecode(modelName);
