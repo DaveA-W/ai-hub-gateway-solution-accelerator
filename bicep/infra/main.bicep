@@ -978,6 +978,7 @@ module apim './modules/apim/apim.bicep' = {
     tags: tags
     applicationInsightsName: monitoring.outputs.apimApplicationInsightsName
     managedIdentityName: apimManagedIdentity.outputs.managedIdentityName
+    keyVaultName: keyVault.outputs.keyVaultName
     entraAuth: entraAuth
     clientAppId: resolvedEntraClientId
     tenantId: resolvedEntraTenantId

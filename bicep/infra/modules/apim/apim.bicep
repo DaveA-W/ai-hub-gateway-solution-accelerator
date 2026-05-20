@@ -18,6 +18,9 @@ param managedIdentityName string
 param clientAppId string = ' '
 param tenantId string = tenant().tenantId
 param audience string = 'https://cognitiveservices.azure.com/.default'
+
+@description('Name of the Key Vault used to store APIM-managed secrets (e.g. the Application Insights connection string consumed by the APIM logger). The vault must already exist and grant the APIM user-assigned managed identity the Key Vault Secrets User role.')
+param keyVaultName string
 param eventHubName string
 param eventHubEndpoint string
 
@@ -753,18 +756,89 @@ module policyFragments './policy-fragments.bicep' = {
   ]
 }
 
+// ----------------------------------------------------------------------------
+// Application Insights logger credentials via Azure Key Vault
+// ----------------------------------------------------------------------------
+// Official guidance: https://learn.microsoft.com/azure/api-management/api-management-howto-app-insights
+// Rather than embedding the Application Insights connection string directly in
+// the APIM logger resource (which would surface it in deployment outputs and ARM
+// history), we store it as a Key Vault secret and expose it via an APIM
+// named value that references the secret. The named value is configured to use
+// the APIM user-assigned managed identity (which already has Key Vault Secrets
+// User on this vault — see `keyvault.bicep`) so the secret is resolved at
+// runtime without static credentials. APIM auto-refreshes the cached value on a
+// regular interval, so rotating the secret in Key Vault is picked up without
+// redeploying the logger.
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+// Persist the Application Insights connection string as a Key Vault secret.
+// Key Vault secret names cannot contain underscores; hyphenated names are used
+// to match the convention applied elsewhere in this accelerator (e.g.
+// `ENTRA-APP-CLIENT-SECRET`). The secret is unversioned so APIM picks up
+// rotated values automatically.
+var appInsightsConnectionStringSecretName = 'apim-appinsights-connection-string'
+
+resource appInsightsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  name: appInsightsConnectionStringSecretName
+  parent: keyVault
+  properties: {
+    value: applicationInsights.properties.ConnectionString
+    contentType: 'text/plain'
+  }
+}
+
+// APIM named value that resolves the secret from Key Vault. The token
+// `{{appinsights-logger-credentials}}` can then be used anywhere an APIM
+// resource accepts a named-value reference (logger credentials, policies, etc.).
+// `secretIdentifier` is intentionally version-less so rotation is automatic.
+var appInsightsLoggerCredentialsNamedValueName = 'appinsights-logger-credentials'
+
+resource appInsightsLoggerCredentialsNamedValue 'Microsoft.ApiManagement/service/namedValues@2024-06-01-preview' = {
+  name: appInsightsLoggerCredentialsNamedValueName
+  parent: apimService
+  properties: {
+    displayName: appInsightsLoggerCredentialsNamedValueName
+    secret: true
+    keyVault: {
+      // Use the APIM user-assigned managed identity for the Key Vault fetch.
+      // The user-assigned identity is granted `Key Vault Secrets User` by
+      // `keyvault.bicep` *before* APIM is provisioned, which guarantees that
+      // the secret is reachable the moment this named value is created and
+      // avoids the chicken-and-egg problem that the system-assigned identity
+      // would have (its role assignment is created in `keyvault-apim-system-rbac.bicep`,
+      // which runs *after* the APIM module).
+      identityClientId: managedIdentity.properties.clientId
+      secretIdentifier: '${keyVault.properties.vaultUri}secrets/${appInsightsConnectionStringSecretName}'
+    }
+  }
+  dependsOn: [
+    appInsightsConnectionStringSecret
+  ]
+}
+
 resource apimLogger 'Microsoft.ApiManagement/service/loggers@2024-05-01' = {
   name: 'appinsights-logger'
   parent: apimService
   properties: {
     credentials: {
-      connectionString: applicationInsights.properties.ConnectionString
+      // Reference the APIM named value (which itself is backed by a Key Vault secret)
+      // instead of embedding the Application Insights connection string directly in
+      // the logger configuration. APIM resolves the {{...}} token at runtime by
+      // fetching the secret from Key Vault using the user-assigned managed identity
+      // declared on the named value.
+      connectionString: '{{${appInsightsLoggerCredentialsNamedValueName}}}'
     }
-    description: 'Application Insights logger for API observability'
+    description: 'Application Insights logger for API observability (connection string resolved from Key Vault via named value)'
     isBuffered: false
     loggerType: 'applicationInsights'
     resourceId: applicationInsights.id
   }
+  dependsOn: [
+    appInsightsLoggerCredentialsNamedValue
+  ]
 }
 
 resource apimAzMonitorLogger 'Microsoft.ApiManagement/service/loggers@2024-10-01-preview' = {
