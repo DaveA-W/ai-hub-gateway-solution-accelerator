@@ -56,6 +56,8 @@ param llmBackendConfig array
 param configureCircuitBreaker bool = true
 
 @description('Tags to apply to resources')
+// Retained for interface compatibility with callers; APIM backends do not support tags.
+#disable-next-line no-unused-params
 param tags object = {}
 
 // ------------------
