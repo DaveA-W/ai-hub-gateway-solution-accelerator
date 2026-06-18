@@ -42,15 +42,25 @@ param jwtAppRegistrationId = ''
 param updateLLMBackends = true
 param updateLLMBackendPools = true
 param updateLLMPolicyFragments = true
+
+// Anthropic API version sent in the anthropic-version header for `anthropic` backends.
+param anthropicVersion = '2023-06-01'
+
 param llmBackendConfig = [
   // Example reflecting the current AI Foundry-based implementation (two backends, each
   // exposing multiple model deployments). Tip: copy the live value from your environment
   // with `azd env get-value LLM_BACKEND_CONFIG` and paste it here (converted to Bicep object syntax).
+  //
+  // Authentication: prefer `authType` over the legacy `authScheme`. When omitted, authType is
+  // derived from backendType (ai-foundry/azure-openai → managed-identity), consistent with the
+  // llm-backend-onboarding package. For api-key backends add an `authConfig` object, e.g.:
+  //   authType: 'api-key-bearer'
+  //   authConfig: { namedValueKey: 'my-provider-key', keyVaultSecretUri: 'https://kv.vault.azure.net/secrets/my-provider-key' }
   // {
   //   backendId: 'aif-REPLACE-0'
   //   backendType: 'ai-foundry'
   //   endpoint: 'https://aif-REPLACE-0.cognitiveservices.azure.com/'
-  //   authScheme: 'managedIdentity'
+  //   authType: 'managed-identity'
   //   priority: 1
   //   weight: 100
   //   supportedModels: [
@@ -66,7 +76,7 @@ param llmBackendConfig = [
   //   backendId: 'aif-REPLACE-1'
   //   backendType: 'ai-foundry'
   //   endpoint: 'https://aif-REPLACE-1.cognitiveservices.azure.com/'
-  //   authScheme: 'managedIdentity'
+  //   authType: 'managed-identity'
   //   priority: 1
   //   weight: 100
   //   supportedModels: [

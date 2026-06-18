@@ -1,4 +1,4 @@
-# APIM Gateway Upgrade
+# APIM Gateway Upgrade (PREVIEW)
 
 As the AI Governance Hub solution accelerator evolves, you may need to update the API Management gateway configuration to add new APIs, modify policies, or adjust logging settings. 
 
@@ -7,6 +7,16 @@ This deployment allows you to seamlessly apply updates to an existing APIM insta
 Notes:
 - Update the configuration of an **existing** API Management instance without re-provisioning the APIM service or surrounding landing-zone infrastructure. 
 - This deployment is designed to run **after** the main accelerator (`bicep/infra/main.bicep`) has provisioned the full environment.
+
+> [!TIP]
+> **Upgrading an APIM that the accelerator did NOT create?** Or one provisioned by an earlier
+> version of the Citadel Governance Hub where some supporting services are missing? Use the companion
+> **`supporting-services.bicep`** deployment in this folder to provision (or align an existing)
+> ecosystem of dependent services — Logic App + Storage, Cosmos DB, Event Hub, primary AI Foundry,
+> Key Vault, and managed identities — with a master on/off switch and per-service bring-your-own
+> options. It never changes the network configuration of an existing APIM or existing supporting
+> services. See **[gateway-ecosystem-upgrade-guide.md](./gateway-ecosystem-upgrade-guide.md)**, then
+> run `main.bicep` (this guide) to apply the APIM configuration.
 
 ## What this deployment updates
 
@@ -32,6 +42,11 @@ Notes:
 - Modify networking, VNet, or private endpoint settings
 - Create managed identities, Key Vaults, or other infrastructure
 - Provision Azure Managed Redis (the Redis instance must already exist for cache updates)
+
+> [!NOTE]
+> Provisioning the dependent infrastructure (managed identities, Key Vault, Event Hub, Cosmos DB,
+> Microsoft Foundry, Storage + Logic App) is handled by the separate **`supporting-services.bicep`**
+> deployment — see **[gateway-ecosystem-upgrade-guide.md](./gateway-ecosystem-upgrade-guide.md)**.
 
 ## Prerequisites
 
@@ -77,7 +92,7 @@ param llmBackendConfig = [
     backendId: 'azure-openai-swedencentral'
     backendType: 'azure-openai'
     endpoint: 'https://my-openai.openai.azure.com'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-08-06' }
     ]
@@ -164,9 +179,13 @@ az deployment group create --name gateway-upgrade-$(date +%Y%m%d%H%M) --resource
 
 ```
 apim-gateway-upgrade/
-├── main.bicep          # Deployment template (resource group scope)
-├── main.bicepparam     # Parameter file — configure before deploying
-└── README.md           # This guide
+├── main.bicep                          # APIM configuration upgrade (resource group scope)
+├── main.bicepparam                     # Parameter file — configure before deploying
+├── supporting-services.bicep           # Gateway ecosystem provisioning / alignment (create-or-BYO)
+├── supporting-services.bicepparam      # Supporting-services parameter file
+├── services/                           # Upgrade-scoped wrapper modules (create-or-BYO, optional PE)
+├── README.md                           # This guide
+└── gateway-ecosystem-upgrade-guide.md  # Guide for supporting-services.bicep
 ```
 
 All API specs, policy XML files, and sub-modules are referenced from `../modules/apim/` — no duplication of policy or spec files.

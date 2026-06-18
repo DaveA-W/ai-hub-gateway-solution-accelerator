@@ -73,7 +73,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -101,9 +101,11 @@ az deployment sub create --name llm-backend-onboarding --location swedencentral 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `backendId` | string | Yes | Unique identifier for the backend (usually the name of the backend resource) |
-| `backendType` | string | Yes | `ai-foundry`, `azure-openai`, `aws-bedrock`, or `external` |
+| `backendType` | string | Yes | `ai-foundry`, `azure-openai`, `aws-bedrock`, `aws-bedrock-mantle`, `gemini`, `gemini-openai`, `anthropic`, or `external` |
 | `endpoint` | string | Yes | Base URL of the LLM service |
-| `authScheme` | string | Yes | `managedIdentity`, `apiKey`, or `token` |
+| `authType` | string | No | `managed-identity`, `aws-sigv4`, `api-key-bearer`, `api-key-header`, `api-key-gemini`, `api-key-anthropic`, or `none`. When omitted, derived from `backendType` (ai-foundry/azure-openai → `managed-identity`) |
+| `authConfig` | object | No | `{ namedValueKey, keyVaultSecretUri?, secretValue? }` — required for `api-key-*` auth types |
+| `authScheme` | string | No | **Legacy** — `managedIdentity`, `apiKey`, or `token`. Superseded by `authType`; still tolerated for backward compatibility |
 | `supportedModels` | array | Yes | Array of model objects (see Model Object Properties below) |
 | `priority` | number | No | 1-5, default 1 (lower = higher priority) |
 | `weight` | number | No | 1-1000, default 100 (load balancing weight) |
@@ -161,7 +163,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -186,7 +188,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -202,7 +204,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-secondary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-1.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-5", "sku": "GlobalStandard", "capacity": 50, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2027-02-05" },
       { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" }
@@ -223,7 +225,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o-mini", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-07-18", "retirementDate": "2026-09-30" },
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" },
@@ -239,7 +241,7 @@ param llmBackendConfig = [
     backendId: 'aoai-eastus-gpt4'
     backendType: 'azure-openai'
     endpoint: 'https://YOUR-AOAI-RESOURCE.openai.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-5", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2025-08-07", "retirementDate": "2027-02-05" },
       { "name": "DeepSeek-R1", "sku": "GlobalStandard", "capacity": 1, "modelFormat": "DeepSeek", "modelVersion": "1", "retirementDate": "2099-12-30", "inferenceApiVersion": "2024-05-01-preview" },
@@ -261,7 +263,7 @@ param llmBackendConfig = [
     backendId: 'aif-citadel-primary'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20", "retirementDate": "2026-09-30" }
     ]
@@ -272,7 +274,7 @@ param llmBackendConfig = [
     backendId: 'bedrock-us-east-1'
     backendType: 'aws-bedrock'
     endpoint: 'https://bedrock-runtime.us-east-1.amazonaws.com'
-    authScheme: 'awsSigV4'
+    authType: 'aws-sigv4'
     supportedModels: [
       { "name": "us.anthropic.claude-3-5-haiku-20241022-v1:0", "sku": "OnDemand", "capacity": 1, "modelFormat": "Anthropic", "modelVersion": "1", "retirementDate": "2099-12-30" }
       { "name": "us.anthropic.claude-3-5-sonnet-20241022-v2:0", "sku": "OnDemand", "capacity": 1, "modelFormat": "Anthropic", "modelVersion": "2", "retirementDate": "2099-12-30" }

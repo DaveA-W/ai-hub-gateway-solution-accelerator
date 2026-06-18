@@ -105,8 +105,16 @@ param contentSafetyServiceUrl string = ''
 //    LLM BACKEND CONFIGURATION
 // =====================================================================
 
-@description('Configuration array for LLM backends supporting multiple providers and models')
+@description('''Configuration array for LLM backends supporting multiple providers and models.
+Each backend object: { backendId, backendType, endpoint, supportedModels[], priority?, weight?,
+authType? ('managed-identity' | 'aws-sigv4' | 'api-key-bearer' | 'api-key-header' | 'api-key-gemini' | 'api-key-anthropic' | 'none'),
+authConfig? ({ namedValueKey, keyVaultSecretUri?, secretValue? }) }.
+When authType is omitted it is derived from backendType (ai-foundry/azure-openai → managed-identity),
+matching the llm-backend-onboarding module. The legacy `authScheme` field is still tolerated but superseded by authType.''')
 param llmBackendConfig array = []
+
+@description('Anthropic API version sent in the anthropic-version header for Anthropic backends (Messages API). Stored as the `anthropic-version` named value referenced by the backend credentials.header.')
+param anthropicVersion string = '2023-06-01'
 
 // =====================================================================
 //    REDIS CACHE & EMBEDDINGS CONFIGURATION
@@ -365,6 +373,7 @@ module llmBackends '../modules/apim/llm-backends.bicep' = if (updateLLMBackends)
     managedIdentityClientId: managedIdentity.properties.clientId
     llmBackendConfig: llmBackendConfig
     configureCircuitBreaker: true
+    anthropicVersion: anthropicVersion
   }
 }
 

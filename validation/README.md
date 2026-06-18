@@ -162,9 +162,9 @@ location = "REPLACE"                       # e.g., "eastus", "swedencentral"
 llm_backends_config = [
     {
         "backendId": "aif-citadel-primary",
-        "backendType": "ai-foundry",           # 'ai-foundry' | 'azure-openai' | 'external'
+        "backendType": "ai-foundry",           # 'ai-foundry' | 'azure-openai' | 'aws-bedrock' | 'gemini' | 'anthropic' | 'external'
         "endpoint": "https://...",
-        "authScheme": "managedIdentity",        # 'managedIdentity' | 'apiKey' | 'token'
+        "authType": "managed-identity",        # 'managed-identity' | 'aws-sigv4' | 'api-key-bearer' | 'api-key-header' | 'api-key-gemini' | 'api-key-anthropic' | 'none' (omit to derive from backendType)
         "supportedModels": [
             { "name": "gpt-4o", "sku": "GlobalStandard", "capacity": 100, "modelFormat": "OpenAI", "modelVersion": "2024-11-20" }
         ],
