@@ -280,7 +280,7 @@ Add your backend to the `llmBackendConfig` array in your `.bicepparam` file with
 | `backendId` | Unique identifier (e.g., `bedrock-us-east-1`) |
 | `backendType` | Your new type identifier (e.g., `aws-bedrock`) — must match the `targetPoolType` in auth fragment |
 | `endpoint` | Base URL of the provider (e.g., `https://bedrock-runtime.us-east-1.amazonaws.com`) |
-| `authScheme` | Authentication scheme (e.g., `awsSigV4`, `managedIdentity`, `apiKey`) |
+| `authType` | Authentication type (e.g., `aws-sigv4`, `managed-identity`, `api-key-bearer`). The legacy `authScheme` is still tolerated but superseded by `authType`. |
 | `supportedModels` | Array of model definitions with metadata |
 
 **Example — Amazon Bedrock backend:**
@@ -291,7 +291,7 @@ param llmBackendConfig = [
     backendId: 'bedrock-us-east-1'
     backendType: 'aws-bedrock'
     endpoint: 'https://bedrock-runtime.us-east-1.amazonaws.com'
-    authScheme: 'awsSigV4'
+    authType: 'aws-sigv4'
     supportedModels: [
       {
         "name": "us.anthropic.claude-3-5-haiku-20241022-v1:0"

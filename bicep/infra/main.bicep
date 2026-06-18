@@ -588,9 +588,12 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
  * 
  * Each backend object should have:
  * - backendId: Unique identifier (used in APIM backend resource name)
- * - backendType: 'ai-foundry' | 'azure-openai' | 'external'
+ * - backendType: 'ai-foundry' | 'azure-openai' | 'aws-bedrock' | 'aws-bedrock-mantle' | 'gemini' | 'gemini-openai' | 'anthropic' | 'external'
  * - endpoint: Base URL of the LLM service
- * - authScheme: 'managedIdentity' | 'apiKey' | 'token'
+ * - authScheme: (Legacy) 'managedIdentity' | 'apiKey' | 'token' — superseded by authType
+ * - authType: (Optional) 'managed-identity' | 'aws-sigv4' | 'api-key-bearer' | 'api-key-header' | 'api-key-gemini' | 'api-key-anthropic' | 'none'.
+ *             When omitted, it is derived from backendType (ai-foundry/azure-openai → managed-identity), matching the llm-backend-onboarding module.
+ * - authConfig: (Optional) { namedValueKey, keyVaultSecretUri?, secretValue? } for api-key-* auth types
  * - supportedModels: Array of model objects with:
  *     - name: Model name (required)
  *     - sku: SKU name for deployment (default: 'Standard')
@@ -614,7 +617,7 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
     backendId: 'aif-REPLACE-0'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-REPLACE-0.services.ai.azure.com/models'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
       { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
@@ -631,7 +634,7 @@ var modelsGroupedByInstance = [for (instance, i) in aiFoundryInstances: {
     backendId: 'aif-REPLACE-1'
     backendType: 'ai-foundry'
     endpoint: 'https://aif-REPLACE-1.services.ai.azure.com/models'
-    authScheme: 'managedIdentity'
+    authType: 'managed-identity'
     supportedModels: [
       { name: 'gpt-5', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-08-07', retirementDate: '2027-02-05' }
       { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
@@ -648,7 +651,7 @@ var llmBackendConfig = [for (instance, i) in aiFoundryInstances: {
   backendId: !empty(instance.name) ? '${instance.name}-${i}' : 'aif-${resourceToken}-${i}'
   backendType: 'ai-foundry'
   endpoint: 'https://${!empty(instance.name) ? instance.name : 'aif-${resourceToken}-${i}'}.cognitiveservices.azure.com/'
-  authScheme: 'managedIdentity'
+  authType: 'managed-identity'
   supportedModels: modelsGroupedByInstance[i].models
   priority: 1
   weight: 100

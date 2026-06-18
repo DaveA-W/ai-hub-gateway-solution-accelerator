@@ -72,9 +72,12 @@ param isMCPSampleDeployed bool = false
  * 
  * Structure:
  * - backendId: Unique identifier for the backend (used in APIM backend resource name)
- * - backendType: Type of backend ('ai-foundry', 'azure-openai', 'external')
+ * - backendType: Type of backend ('ai-foundry', 'azure-openai', 'aws-bedrock', 'aws-bedrock-mantle', 'gemini', 'gemini-openai', 'anthropic', 'external')
  * - endpoint: Base URL for the backend service
- * - authScheme: Authentication method ('managedIdentity', 'apiKey', 'token')
+ * - authScheme: (Legacy) Authentication method ('managedIdentity', 'apiKey', 'token') — superseded by authType
+ * - authType: (Optional) 'managed-identity' | 'aws-sigv4' | 'api-key-bearer' | 'api-key-header' | 'api-key-gemini' | 'api-key-anthropic' | 'none'.
+ *             When omitted, it is derived from backendType (ai-foundry/azure-openai → managed-identity).
+ * - authConfig: (Optional) { namedValueKey: 'apim-named-value', keyVaultSecretUri?: '...', secretValue?: '...' } for api-key-* auth types
  * - supportedModels: Array of model objects with:
  *     - name: Model name (required)
  *     - sku: (Optional) SKU name for deployment (default: 'Standard')

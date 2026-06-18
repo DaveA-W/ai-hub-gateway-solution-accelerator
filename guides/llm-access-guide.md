@@ -1,14 +1,26 @@
 # LLM Access Guide
 
-> **Unified reference for accessing LLMs through the Citadel Governance Hub.** This guide consolidates the three LLM API surfaces and the two access patterns into a single decision and implementation reference. It opens with an executive summary for architects and platform owners, then dives into the deep technical routing internals for engineers.
->
-> This guide **supersedes** the former `llm-routing-architecture.md` — all routing-architecture content lives here, reorganized around *how clients access models* rather than just *how requests are routed*.
+> **Unified reference for accessing LLMs through the Citadel Governance Hub.** This guide consolidates the three LLM API surfaces and the two access patterns into a single decision and implementation reference. 
+
+It opens with an executive summary for architects and platform owners, then dives into the deep technical routing internals for engineers.
 
 ---
 
 ## Executive Summary
 
-The Citadel Governance Hub exposes every LLM — Azure OpenAI, Azure AI Foundry, AWS Bedrock, Google Gemini, Anthropic, and other providers — through **Azure API Management (APIM)** acting as a single, governed front door. Instead of distributing master keys and letting each team call provider endpoints directly, all traffic flows through one control plane that enforces security, RBAC, cost attribution, load balancing, failover, and observability on every call.
+The Citadel Governance Hub exposes every LLM — Azure OpenAI (legacy), Microsoft Foundry Models, AWS Bedrock, Google Gemini, Anthropic Claude, and other providers — through **Azure API Management (APIM)** acting as a single, governed front door. 
+
+Instead of distributing master keys and letting each team call provider endpoints directly, all traffic flows through one control plane that enforces security, RBAC, cost attribution, load balancing, failover, and observability on every call.
+
+### Three LLM APIs
+
+Citadel Governance Hub offers **three distinct API surfaces** to accommodate different client needs and integration scenarios. Each API supports one or both of the two access patterns (OpenAI-Compatible and Provider-Native) described in the next section.
+
+| API | Path | Access pattern(s) | Primary use case | Validation notebook |
+|---|---|---|---|---|
+| **Azure OpenAI API** | `/openai/deployments/{deployment-id}/*` | OpenAI-Compatible (Azure OpenAI SDK shape) | **Legacy integration only** — existing code built on the Azure OpenAI SDK that pins the `/openai/deployments/...` URL shape. | [citadel-access-contracts-tests.ipynb](../validation/citadel-access-contracts-tests.ipynb) |
+| **Universal LLM API** | `/models/*` | OpenAI-Compatible (OpenAI v1 spec) | OpenAI-compatible access across many models/providers via a single stable path. | [citadel-universal-llm-api-all-models-tests.ipynb](../validation/citadel-universal-llm-api-all-models-tests.ipynb) |
+| **Unified AI API** ⭐ | `/unified-ai/*` | OpenAI-Compatible **and** Provider-Native | **Recommended** single wildcard endpoint that serves OpenAI-compatible *and* every provider-native pattern with dynamic routing. | [citadel-unified-ai-api-tests.ipynb](../validation/citadel-unified-ai-api-tests.ipynb) |
 
 ### Two access patterns
 
@@ -18,14 +30,6 @@ Every way a client can call a model collapses into one of two patterns:
 |---|---|---|---|
 | **OpenAI-Compatible access** | Standard OpenAI request/response shapes (`/chat/completions`, `/embeddings`, `/responses`, `/v1/*`). Clients use stock OpenAI SDKs and the gateway routes transparently to whichever backend hosts the model. | **All three APIs** (Azure OpenAI API, Universal LLM API, Unified AI API) | The default for **new** integrations and any code that already speaks OpenAI. |
 | **LLM Provider-Native access** | The provider's own wire format — Bedrock Converse (`/model/{id}/converse`), Gemini (`/models/{id}:generateContent`), Anthropic Messages (`/v1/messages`). Clients use the provider's native SDK and get provider-specific features. | **Unified AI API only** | Workloads that need provider-exclusive capabilities or must run an existing provider-native SDK unchanged. |
-
-### Three LLM APIs
-
-| API | Path | Access pattern(s) | Primary use case | Validation notebook |
-|---|---|---|---|---|
-| **Azure OpenAI API** | `/openai/deployments/{deployment-id}/*` | OpenAI-Compatible (Azure OpenAI SDK shape) | **Legacy integration only** — existing code built on the Azure OpenAI SDK that pins the `/openai/deployments/...` URL shape. | [citadel-access-contracts-tests.ipynb](../validation/citadel-access-contracts-tests.ipynb) |
-| **Universal LLM API** | `/models/*` | OpenAI-Compatible (OpenAI v1 spec) | OpenAI-compatible access across many models/providers via a single stable path. | [citadel-universal-llm-api-all-models-tests.ipynb](../validation/citadel-universal-llm-api-all-models-tests.ipynb) |
-| **Unified AI API** ⭐ | `/unified-ai/*` | OpenAI-Compatible **and** Provider-Native | **Recommended** single wildcard endpoint that serves OpenAI-compatible *and* every provider-native pattern with dynamic routing. | [citadel-unified-ai-api-tests.ipynb](../validation/citadel-unified-ai-api-tests.ipynb) |
 
 ### Quick recommendations
 
@@ -87,11 +91,13 @@ Preserves the exact Azure OpenAI SDK URL shape, where the model is a `{deploymen
 
 ### Universal LLM API — `/models/*`
 
-Implements the **OpenAI v1 spec** (chat completions, embeddings, and the full Responses API trio) behind a single stable `/models` path. The model travels in the request body (or the `/deployments/{model}/` segment for AOAI passthrough), so a single client URL can reach many models across Azure OpenAI, Foundry, Bedrock-Mantle, and Gemini-OpenAI backends — as long as those backends expose an OpenAI-compatible surface.
+Implements the **OpenAI v1 spec** (chat completions, embeddings, and the full Responses API trio in addition to other operations outlined in OpenAI V1 spec) behind a single stable `/models` path. The model travels in the request body (or the `/deployments/{model}/` segment for AOAI passthrough), so a single client URL can reach many models across Azure OpenAI, Foundry, Bedrock-Mantle, and Gemini-OpenAI backends — as long as those backends expose an OpenAI-compatible surface.
 
 - **Access pattern:** OpenAI-Compatible (OpenAI v1)
 - **Compatible pool types:** `azure-openai`, `ai-foundry`, `aws-bedrock-mantle`, `gemini-openai` (native-only pools are excluded — see [`compatiblePoolTypes`](#step-3-target-pool-selection-set-target-backend-pool))
 - **Validation:** [citadel-universal-llm-api-all-models-tests.ipynb](../validation/citadel-universal-llm-api-all-models-tests.ipynb) discovers every gateway model via `GET /models/models` and runs chat / embeddings / Responses against each.
+
+> You can consider this layer if you want to maintain access to all OpenAI specific operations beyond the standard chat, embedding and responses patterns keeping in mind that the underlying backend must support those operations. For example, Azure OpenAI and Foundry support the full OpenAI v1 spec and are accessible through this API, but AWS Bedrock and Google Gemini only support a subset of OpenAI-compatible operations and are better accessed through the Unified AI API.
 
 ### Unified AI API — `/unified-ai/*` ⭐ Recommended
 
@@ -142,7 +148,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gpt-4o",  # Any model configured in the gateway
+    model="gpt-5.1",  # Any model configured in the gateway
     messages=[{"role": "user", "content": "Hello!"}],
 )
 print(response.choices[0].message.content)
@@ -155,7 +161,7 @@ curl -X POST "https://<apim-gateway>/unified-ai/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "api-key: <subscription-key>" \
   -d '{
-    "model": "gpt-4o",
+    "model": "gpt-5.1",
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 ```
