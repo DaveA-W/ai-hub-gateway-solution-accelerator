@@ -11,6 +11,8 @@ The Unified AI API uses a modular, fragment-based architecture that supports add
 
 This guide walks through every step required to add a new API type, using **Amazon Bedrock** as a concrete example.
 
+> **Another worked example: image models.** The `image` api-type (Azure OpenAI gpt-image, Black Forest Labs FLUX, Microsoft MAI) was added following exactly these steps — a new `image` api-type with `base-path: /v1/images`, new `azure-flux`/`azure-mai` backend types with their own `backend-path-templates`, a `{modelPath}` slug placeholder resolved in `path-builder`, and an `x-ai-model` header fallback for multipart edits in `request-processor`. See [LLM Access Guide — Image Models](./llm-access-guide.md#image-models) and [LLM Backend Onboarding — Image Models](../bicep/infra/llm-backend-onboarding/README.md#image-models).
+
 ## Architecture Context
 
 The Unified AI API handles all request patterns through a single wildcard endpoint (`/unified-ai/*`). The routing flow is:

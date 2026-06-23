@@ -208,8 +208,46 @@ curl -X POST "https://<apim-gateway>/unified-ai/bedrock/model/us.anthropic.claud
 | Existing Azure OpenAI SDK code | **Azure OpenAI API** (`/openai/deployments/...`) | OpenAI-Compatible (legacy) | Preserves the exact URL shape with zero client change. |
 | Cross-provider fallback / model upgrades without client change | Any API + **model alias** | Either | Alias resolves to real models at runtime with priority/weighted strategy. |
 | Multi-team governance, per-use-case model restrictions | Any API + **access contract** | Either | `allowedModels` / `allowedBackendPools` enforced per product. |
+| Generate or edit images (gpt-image, FLUX, MAI) | **Unified AI API** (`/unified-ai/v1/images/*`) | OpenAI-Compatible | One OpenAI-style images endpoint; gateway builds each provider's path internally. See [Image Models](#image-models). |
 
 > **Rule of thumb:** default to the **Unified AI API**. Drop to the **Universal LLM API** when you want an OpenAI-v1-only surface, and to the **Azure OpenAI API** only for legacy compatibility.
+
+---
+
+## Image Models
+
+The Unified AI API also routes **image-generation and image-edit** models — Azure OpenAI **gpt-image**, Black Forest Labs **FLUX**, and Microsoft **MAI** — through a single OpenAI-style images surface. Because all three providers return OpenAI-shaped responses (`data[].b64_json`), the gateway needs **no response translation**: it only builds the correct provider path per backend type. Image traffic is isolated behind a dedicated `image` api-type and new pool types, so chat/embeddings/responses and the native provider surfaces are unaffected.
+
+### Client surface
+
+| Endpoint | Model location | Use for |
+|---|---|---|
+| `POST /unified-ai/v1/images/generations` | `model` in JSON body | Generation (any image model) |
+| `POST /unified-ai/openai/deployments/{model}/images/generations` | `{model}` in URL | Generation (Azure OpenAI SDK style) |
+| `POST /unified-ai/openai/deployments/{model}/images/edits` | `{model}` in URL | Edits (multipart) — **recommended** |
+| `POST /unified-ai/v1/images/edits` | `x-ai-model` **header** | Edits (multipart) without the deployments path |
+
+> Image **edits** are `multipart/form-data`, and the model can't be read from a multipart form field. Use the `/openai/deployments/{model}/images/edits` form (model in URL), or set the `x-ai-model` header on `POST /v1/images/edits`. A missing model returns `400 missing_model_parameter` with explicit guidance.
+
+### Provider routing
+
+| Provider | Backend type | Backend path the gateway builds | Model location |
+|---|---|---|---|
+| Azure OpenAI / Foundry gpt-image | `ai-foundry` / `azure-openai` | `/openai/v1/images/{generations\|edits}` | Body / URL |
+| Black Forest Labs FLUX | `azure-flux` | `/providers/blackforestlabs/v1/{modelPath}?api-version=preview` | Body (slug from `modelPath`) |
+| Microsoft MAI | `azure-mai` | `/mai/v1/images/{generations\|edits}` | Body |
+
+FLUX requires a one-time `modelPath` slug per model (e.g. `FLUX.2-pro` -> `flux-2-pro`) because the URL slug isn't derivable from the model name. Example generation request:
+
+```bash
+curl -X POST "https://<apim-gateway>/unified-ai/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -H "api-key: <subscription-key>" \
+  -d '{ "model": "FLUX.2-pro", "prompt": "A red fox in an autumn forest", "n": 1, "size": "1024x1024" }' \
+  | jq -r '.data[0].b64_json' | base64 --decode > out.png
+```
+
+RBAC, model aliases, cost attribution, and access contracts apply to image models exactly as they do to LLMs (`allowedModels` matches the image model name). Token-usage metrics are unchanged — image responses simply emit zero token usage. Full onboarding details and example `.bicepparam` config are in [LLM Backend Onboarding — Image Models](../bicep/infra/llm-backend-onboarding/README.md#image-models).
 
 ---
 
@@ -515,6 +553,7 @@ The `metadata-config` fragment defines the supported API types with their path p
 | `openai-v1` | `/openai/v1` | `/deployments` | `v1` | OpenAI v1 completions |
 | `geminiopenai` | `/v1beta/openai` | `/v1beta/openai` | `v1beta` | Google Gemini OpenAI-compatible |
 | `bedrock` | `/model` | `/model` | `bedrock-2024-04-15` | Amazon Bedrock Converse API |
+| `image` | `/v1/images` | _(none)_ | `v1` | Image generation/edit (gpt-image, FLUX, MAI) |
 
 Each API type can optionally define a `backend` property to override pool-based model routing and route to a specific backend directly (via `apiTypeOverrideBackend`).
 
@@ -580,16 +619,17 @@ Reconstructs the backend URI from known components based on the detected API typ
 
 | API Type | Backend Path Pattern |
 |----------|---------------------|
-| `openai` (default) | `{api-base-path}/deployments/{model}/chat/completions` |
+| `openai` (default) | `{api-base-path}/deployments/{model}/{operation}` (operation from path; defaults to `chat/completions`) |
 | `inference` | `{api-base-path}/chat/completions` |
 | `geminiopenai` | `{api-base-path}/chat/completions` |
 | `openai-v1` | `{api-base-path}/chat/completions` |
 | `responses` / `responses-v1` | `{api-base-path}` or `{api-base-path}/{response-id}` |
 | `bedrock` | `/model/{model}/converse` |
+| `image` | `backend-path-templates[poolType][images/generations\|images/edits]` with `{model}`/`{modelPath}` resolved (e.g. FLUX `/providers/blackforestlabs/v1/{modelPath}`) |
 
 Additional behavior:
-- Auto-injects `api-version` query parameter for `responses` and `inference` types.
-- Adds `model` field to request body if not present (for `openai` type).
+- Auto-injects `api-version` query parameter for `responses` and `inference` types; for `image` it injects `v1` (ai-foundry/azure-openai), `preview` (azure-flux), or none (azure-mai).
+- Adds `model` field to request body if not present (for `openai` type, **chat/completions only** — image bodies are never rewritten, preserving multipart edits).
 - Non-LLM requests (GET/DELETE) skip path building entirely.
 
 #### Step 10: Response Headers (set-response-headers)

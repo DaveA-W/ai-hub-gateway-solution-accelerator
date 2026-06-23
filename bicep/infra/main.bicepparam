@@ -238,6 +238,16 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 0
   }
   {
+    name: 'FLUX.2-pro'
+    publisher: 'Black Forest Labs'
+    version: '1'
+    sku: 'GlobalStandard'
+    capacity: 1
+    retirementDate: '2099-09-01'
+    inferenceApiVersion: '2024-05-01-preview'
+    aiserviceIndex: 0
+  }
+  {
     name: 'text-embedding-3-large'
     publisher: 'OpenAI'
     version: '1'

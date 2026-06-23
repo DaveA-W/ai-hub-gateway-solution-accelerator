@@ -194,6 +194,17 @@
                 return bodyModel;
             }
 
+            // image api-type multipart edits: the model cannot be read from a multipart form
+            // field, so clients pass it via the `x-ai-model` header. JSON image generations
+            // still resolve from the body above; this is the multipart-edit fallback. The
+            // /openai/deployments/{model}/images/... path form is handled by the `openai`
+            // api-type's path-segment extraction below.
+            if (apiType.Equals("image", StringComparison.OrdinalIgnoreCase))
+            {
+                var headerModel = context.Request.Headers.GetValueOrDefault("x-ai-model", String.Empty);
+                if (!String.IsNullOrEmpty(headerModel)) { return headerModel; }
+            }
+
             var path = context.Variables.GetValueOrDefault<string>("routing-processed-path", String.Empty);
 
             // bedrock-native: /bedrock/model/{modelId}/{operation}  (e.g. /bedrock/model/us.anthropic.claude/converse)
@@ -267,13 +278,16 @@
     <set-variable name="openai-compat-operation" value="@{
         var apiType = context.Variables.GetValueOrDefault<string>("api-type", "");
         if (!apiType.Equals("openai-compat", StringComparison.OrdinalIgnoreCase)
-            && !apiType.Equals("inference", StringComparison.OrdinalIgnoreCase)) {
+            && !apiType.Equals("inference", StringComparison.OrdinalIgnoreCase)
+            && !apiType.Equals("image", StringComparison.OrdinalIgnoreCase)) {
             return String.Empty;
         }
         var path = context.Variables.GetValueOrDefault<string>("routing-processed-path", "");
         // Strip the api-type's base-path prefix to leave the operation segment.
-        // openai-compat base-path = /v1   ; inference base-path = /models
-        string prefix = apiType.Equals("openai-compat", StringComparison.OrdinalIgnoreCase) ? "/v1/" : "/models/";
+        // openai-compat base-path = /v1 ; inference base-path = /models ;
+        // image base-path = /v1/images but we strip only /v1/ so the operation keeps the
+        // images/ prefix (images/generations | images/edits) to match backend-path-templates.
+        string prefix = apiType.Equals("inference", StringComparison.OrdinalIgnoreCase) ? "/models/" : "/v1/";
         var idx = path.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
         if (idx >= 0) {
             return path.Substring(idx + prefix.Length).TrimEnd('/');
@@ -313,9 +327,13 @@
                     <value>application/json</value>
                 </set-header>
                 <set-body>@{
+                    var apiType = context.Variables.GetValueOrDefault<string>("api-type", "");
+                    var msg = apiType.Equals("image", StringComparison.OrdinalIgnoreCase)
+                        ? "Model could not be detected. For multipart image edits (POST /v1/images/edits) supply the model via the 'x-ai-model' request header. For JSON image generations include the 'model' field in the request body, or use the /openai/deployments/{model}/images/{generations|edits} path form."
+                        : "Model could not be detected from request body or path";
                     return new JObject(
                         new JProperty("error", new JObject(
-                            new JProperty("message", "Model could not be detected from request body or path"),
+                            new JProperty("message", msg),
                             new JProperty("type", "invalid_request_error"),
                             new JProperty("code", "missing_model_parameter"),
                             new JProperty("param", "model")
