@@ -224,7 +224,8 @@ param aiFoundryModelsConfig = [
     sku: 'GlobalStandard'
     capacity: 2
     retirementDate: '2026-12-16'
-    inferenceApiVersion: '2024-05-01-preview'
+    inferenceApiVersion: '2025-04-01-preview'
+    apiVersion: '2025-04-01-preview'
     aiserviceIndex: 0
   }
   {
