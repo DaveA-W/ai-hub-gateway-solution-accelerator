@@ -218,12 +218,33 @@ param aiFoundryModelsConfig = [
     aiserviceIndex: 0
   }
   {
-    name: 'DeepSeek-R1'
-    publisher: 'DeepSeek'
+    name: 'gpt-image-1.5'
+    publisher: 'OpenAI'
+    version: '2025-12-16'
+    sku: 'GlobalStandard'
+    capacity: 2
+    retirementDate: '2026-12-16'
+    inferenceApiVersion: '2025-04-01-preview'
+    apiVersion: '2025-04-01-preview'
+    aiserviceIndex: 0
+  }
+  {
+    name: 'MAI-Image-2.5-Flash'
+    publisher: 'Microsoft'
+    version: '2026-06-02'
+    sku: 'GlobalStandard'
+    capacity: 1
+    retirementDate: '2026-09-01'
+    inferenceApiVersion: '2024-05-01-preview'
+    aiserviceIndex: 0
+  }
+  {
+    name: 'FLUX.2-pro'
+    publisher: 'Black Forest Labs'
     version: '1'
     sku: 'GlobalStandard'
     capacity: 1
-    retirementDate: '2099-12-30'
+    retirementDate: '2099-09-01'
     inferenceApiVersion: '2024-05-01-preview'
     aiserviceIndex: 0
   }
@@ -292,16 +313,6 @@ param aiFoundryModelsConfig = [
     sku: 'GlobalStandard'
     capacity: 100
     retirementDate: '2027-02-05'
-    aiserviceIndex: 1
-  }
-  {
-    name: 'DeepSeek-R1'
-    publisher: 'DeepSeek'
-    version: '1'
-    sku: 'GlobalStandard'
-    capacity: 1
-    retirementDate: '2099-12-30'
-    inferenceApiVersion: '2024-05-01-preview'
     aiserviceIndex: 1
   }
   {

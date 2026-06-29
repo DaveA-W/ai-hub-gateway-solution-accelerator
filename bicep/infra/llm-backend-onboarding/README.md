@@ -101,7 +101,7 @@ az deployment sub create --name llm-backend-onboarding --location swedencentral 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
 | `backendId` | string | Yes | Unique identifier for the backend (usually the name of the backend resource) |
-| `backendType` | string | Yes | `ai-foundry`, `azure-openai`, `aws-bedrock`, `aws-bedrock-mantle`, `gemini`, `gemini-openai`, `anthropic`, or `external` |
+| `backendType` | string | Yes | `ai-foundry`, `azure-openai`, `aws-bedrock`, `aws-bedrock-mantle`, `gemini`, `gemini-openai`, `anthropic`, `azure-flux`, `azure-mai`, or `external` |
 | `endpoint` | string | Yes | Base URL of the LLM service |
 | `authType` | string | No | `managed-identity`, `aws-sigv4`, `api-key-bearer`, `api-key-header`, `api-key-gemini`, `api-key-anthropic`, or `none`. When omitted, derived from `backendType` (ai-foundry/azure-openai → `managed-identity`) |
 | `authConfig` | object | No | `{ namedValueKey, keyVaultSecretUri?, secretValue? }` — required for `api-key-*` auth types |
@@ -125,6 +125,7 @@ Each model in the `supportedModels` array has these properties:
 | `apiVersion` | string | No | API version for OpenAI-type requests (default: `2024-02-15-preview`). Used by Unified AI API for backend routing |
 | `timeout` | number | No | Request timeout in seconds (default: `120`). Used by Unified AI API for per-model timeout configuration |
 | `inferenceApiVersion` | string | No | API version for inference-type requests (e.g., `2024-05-01-preview`). Used by Unified AI API for non-OpenAI models |
+| `modelPath` | string | No | Provider-specific model slug used in the backend URL path. **Required for `azure-flux`** models, where the BFL slug differs from the model name (e.g. model `FLUX.2-pro` -> `modelPath` `flux-2-pro`, `FLUX.1-Kontext-pro` -> `flux-kontext-pro`). When omitted, the gateway falls back to the model name. Set once at onboarding; see [Image Models](#image-models). |
 
 ### Backend Types
 
@@ -152,6 +153,20 @@ Each model in the `supportedModels` array has these properties:
 - Path construction: `/model/{model-id}/converse`
 - Requires additional parameters: `awsAccessKey`, `awsSecretKey`, `awsRegion`
 - See [Microsoft Learn: Import Amazon Bedrock API](https://learn.microsoft.com/en-us/azure/api-management/amazon-bedrock-passthrough-llm-api) for detailed APIM integration guidance
+
+#### Azure FLUX (`azure-flux`)
+- Black Forest Labs FLUX image models hosted on a Microsoft Foundry resource (native BFL surface)
+- Endpoint format: `https://<resource>.services.ai.azure.com/` (or `https://<resource>.api.cognitive.microsoft.com/`)
+- Authentication: Managed identity with Cognitive Services scope (same as `ai-foundry`)
+- Path construction: `/providers/blackforestlabs/v1/{modelPath}?api-version=preview` — **each model must set `modelPath`** (the BFL slug, e.g. `flux-2-pro`)
+- Image generation/edit only; reached via the unified `/v1/images/generations` and `/v1/images/edits` surfaces. See [Image Models](#image-models).
+
+#### Azure MAI (`azure-mai`)
+- Microsoft MAI image models hosted on a Microsoft Foundry resource (native MAI surface)
+- Endpoint format: `https://<resource>.services.ai.azure.com/`
+- Authentication: Managed identity with Cognitive Services scope (override to `api-key-header` if using a key)
+- Path construction: `/mai/v1/images/generations` and `/mai/v1/images/edits` (model travels in the request body)
+- Image generation/edit only; reached via the unified `/v1/images/generations` and `/v1/images/edits` surfaces. See [Image Models](#image-models).
 
 ## Example Configurations
 
@@ -292,6 +307,86 @@ param awsRegion = 'us-east-1'
 ```
 
 > **Important**: Store AWS access keys securely. Consider using Azure Key Vault references for the APIM named values in production. See [Create IAM user access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html#Using_CreateAccessKey) for generating AWS access keys.
+
+## Image Models
+
+The Unified AI API routes image-generation and image-edit models (Azure OpenAI **gpt-image**, Black Forest Labs **FLUX**, Microsoft **MAI**) through a single OpenAI-style images surface. All three providers return OpenAI-shaped responses (`data[].b64_json`), so clients use one consistent contract regardless of provider.
+
+### Client surface
+
+| Endpoint | Model location | Use for |
+|----------|----------------|---------|
+| `POST /unified-ai/v1/images/generations` | `model` in JSON body | Generation (gpt-image, FLUX, MAI) |
+| `POST /unified-ai/openai/deployments/{model}/images/generations` | `{model}` in URL | Generation (Azure OpenAI SDK style) |
+| `POST /unified-ai/openai/deployments/{model}/images/edits` | `{model}` in URL | Edits (multipart) — **recommended** |
+| `POST /unified-ai/v1/images/edits` | `x-ai-model` **header** | Edits (multipart) when not using the deployments path |
+
+> **Image edits are multipart/form-data.** The model can't be read from a multipart form field, so on `POST /unified-ai/v1/images/edits` you must pass the model in the `x-ai-model` request header. Prefer the `/openai/deployments/{model}/images/edits` form, which carries the model in the URL. A missing model returns `400 missing_model_parameter` with guidance.
+
+### Provider routing
+
+| Provider | `backendType` | Backend path built by the gateway | Auth |
+|----------|---------------|-----------------------------------|------|
+| Azure OpenAI / Foundry gpt-image | `ai-foundry` / `azure-openai` | `/openai/v1/images/generations` \| `/openai/v1/images/edits` | Managed identity |
+| Black Forest Labs FLUX | `azure-flux` | `/providers/blackforestlabs/v1/{modelPath}?api-version=preview` | Managed identity |
+| Microsoft MAI | `azure-mai` | `/mai/v1/images/generations` \| `/mai/v1/images/edits` | Managed identity |
+
+### FLUX `modelPath` (one-time onboarding step)
+
+FLUX's URL slug isn't derivable from the model name, so **every `azure-flux` model must set `modelPath`** to the BFL slug. This is a one-time onboarding value; once set, the gateway routes correctly:
+
+| Model name | `modelPath` |
+|------------|-------------|
+| `FLUX.2-pro` | `flux-2-pro` |
+| `FLUX.2-flex` | `flux-2-flex` |
+| `FLUX.1-Kontext-pro` | `flux-kontext-pro` |
+| `FLUX-1.1-pro` | `flux-pro-1.1` |
+
+### Example configuration
+
+```bicep
+param llmBackendConfig = [
+  // gpt-image rides the existing Foundry/Azure OpenAI backend (no new backend needed)
+  {
+    backendId: 'aif-citadel-primary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { "name": "gpt-image-1.5", "sku": "GlobalStandard", "capacity": 10, "modelFormat": "OpenAI", "modelVersion": "1", "retirementDate": "2099-12-30" }
+    ]
+    priority: 1
+    weight: 100
+  }
+  // FLUX — native BFL surface; each model sets its modelPath slug
+  {
+    backendId: 'aif-citadel-flux'
+    backendType: 'azure-flux'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.services.ai.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { "name": "FLUX.2-pro", "modelPath": "flux-2-pro", "modelFormat": "BlackForestLabs", "modelVersion": "1", "retirementDate": "2099-12-30" }
+      { "name": "FLUX.1-Kontext-pro", "modelPath": "flux-kontext-pro", "modelFormat": "BlackForestLabs", "modelVersion": "1", "retirementDate": "2099-12-30" }
+    ]
+    priority: 1
+    weight: 100
+  }
+  // MAI — native MAI surface; model travels in the request body
+  {
+    backendId: 'aif-citadel-mai'
+    backendType: 'azure-mai'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.services.ai.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [
+      { "name": "MAI-Image-2.5-Flash", "modelFormat": "MAI", "modelVersion": "1", "retirementDate": "2099-12-30" }
+    ]
+    priority: 1
+    weight: 100
+  }
+]
+```
+
+> **Backward compatible.** Image routing is isolated behind a new `image` api-type (`/v1/images`) plus the new `azure-flux`/`azure-mai` pool types. Existing chat, embeddings, responses, and native Bedrock/Gemini/Anthropic surfaces are unaffected. Token-usage metrics are unchanged (image responses simply emit zero token usage).
 
 ## Request Flow
 

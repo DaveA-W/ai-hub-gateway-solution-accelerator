@@ -95,7 +95,16 @@
                 }
             }
             
-            // 5. Try request body "model" field (OpenAI-compat / Anthropic Messages / Inference)
+            // 5. Try x-ai-model header (image multipart edits: POST /v1/images/edits, where the
+            //    model is neither in a JSON body nor the URL path — mirrors the request-processor
+            //    image flow so access-contract RBAC resolves the model for multipart requests).
+            var headerModel = context.Request.Headers.GetValueOrDefault("x-ai-model", string.Empty);
+            if (!string.IsNullOrEmpty(headerModel))
+            {
+                return headerModel;
+            }
+
+            // 6. Try request body "model" field (OpenAI-compat / Anthropic Messages / Inference)
             var bodyText = context.Request.Body.As<string>(preserveContent: true);
             if (string.IsNullOrEmpty(bodyText))
             {
