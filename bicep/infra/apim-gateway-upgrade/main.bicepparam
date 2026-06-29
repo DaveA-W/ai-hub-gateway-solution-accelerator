@@ -96,6 +96,11 @@ param llmBackendConfig = [
 param updateUniversalLLMApi = true
 param updateAzureOpenAIApi = true
 
+// API path prefixes for legacy coexistence. Leave '' to deploy at /openai and /models.
+// Set (e.g. 'v2') to deploy the new APIs at /v2/openai and /v2/models so legacy APIs can stay live.
+param azureOpenAIApiPathPrefix = ''
+param universalLLMApiPathPrefix = ''
+
 // =====================================================================
 //    UNIFIED AI WILDCARD API
 // =====================================================================
@@ -128,6 +133,13 @@ param embeddingsBackendUrl = ''
 // =====================================================================
 
 param updateAppInsightsDiagnostics = true
+
+// Azure Monitor logger — for legacy installs that never provisioned it. Set deployAzureMonitorLogger
+// = true to create the 'azuremonitor' logger, and provide an EXISTING Log Analytics workspace resource
+// ID to wire APIM diagnostic settings to it (no workspace is provisioned).
+param deployAzureMonitorLogger = false
+param logAnalyticsWorkspaceResourceId = ''
+
 
 param azureMonitorLogSettings = {
   frontend: {

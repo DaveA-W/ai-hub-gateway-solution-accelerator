@@ -10,7 +10,8 @@
  * Prerequisites:
  *   - APIM service already exists in the target resource group
  *   - Application Insights logger ('appinsights-logger') already exists on the APIM instance
- *   - Azure Monitor logger ('azuremonitor') already exists on the APIM instance
+ *   - Azure Monitor logger ('azuremonitor') already exists on the APIM instance — OR set
+ *     deployAzureMonitorLogger=true to create it during the upgrade for legacy installs
  *   - User-assigned managed identity already exists (for backend auth)
  */
 
@@ -90,6 +91,32 @@ param jwtTenantId string = ''
 
 @description('JWT App Registration Client ID (required when enableJwtAuth is true)')
 param jwtAppRegistrationId string = ''
+
+// =====================================================================
+//    API PATH PREFIXES (legacy coexistence)
+// =====================================================================
+
+@description('''Optional path prefix for the Azure OpenAI API. Default '' deploys at /openai. Set to e.g.
+'v2' to deploy at /v2/openai so a legacy /openai API can coexist (Option 2 in the README). The
+frontend prefix is stripped dynamically by policies (context.Api.Path), so it never conflicts with
+policy fragments or backend routing.''')
+param azureOpenAIApiPathPrefix string = ''
+
+@description('''Optional path prefix for the Universal LLM API. Default '' deploys at /models. Set to e.g.
+'v2' to deploy at /v2/models so a legacy /models API can coexist (Option 2 in the README). The
+frontend prefix is stripped dynamically by policies (context.Api.Path), so it never conflicts with
+policy fragments or backend routing.''')
+param universalLLMApiPathPrefix string = ''
+
+// =====================================================================
+//    AZURE MONITOR LOGGER (legacy installs missing it)
+// =====================================================================
+
+@description('Create the azuremonitor logger as part of the upgrade (for legacy installs that never provisioned it). When false, the logger is assumed to already exist.')
+param deployAzureMonitorLogger bool = false
+
+@description('Resource ID of an EXISTING Log Analytics workspace to wire to APIM diagnostic settings when deployAzureMonitorLogger is true. No workspace is provisioned. Leave empty to create only the logger without diagnostic settings.')
+param logAnalyticsWorkspaceResourceId string = ''
 
 // =====================================================================
 //    NAMED VALUE PARAMETERS
@@ -184,10 +211,35 @@ resource appInsightsLogger 'Microsoft.ApiManagement/service/loggers@2024-05-01' 
   parent: apimService
 }
 
-resource azMonitorLogger 'Microsoft.ApiManagement/service/loggers@2024-05-01' existing = {
-  name: 'azuremonitor'
+resource azMonitorLoggerNew 'Microsoft.ApiManagement/service/loggers@2024-10-01-preview' = if (deployAzureMonitorLogger) {
   parent: apimService
+  name: 'azuremonitor'
+  properties: {
+    loggerType: 'azureMonitor'
+    isBuffered: false
+    description: 'Azure Monitor logger for Log Analytics'
+  }
 }
+
+// Route APIM diagnostics to an existing Log Analytics workspace (no workspace is provisioned).
+resource apimAzMonitorDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (deployAzureMonitorLogger && !empty(logAnalyticsWorkspaceResourceId)) {
+  name: 'apim-azuremonitor-diagnostics'
+  scope: apimService
+  properties: {
+    workspaceId: logAnalyticsWorkspaceResourceId
+    logs: [
+      { categoryGroup: 'allLogs', enabled: true }
+    ]
+    metrics: [
+      { category: 'AllMetrics', enabled: true }
+    ]
+  }
+}
+
+// Resolve the logger id without an `existing` reference (which would clash with the conditional
+// create above and trigger "defined multiple times"). When the logger is created, this string id
+// matches it; otherwise it references the pre-provisioned logger.
+var azMonitorLoggerId = resourceId('Microsoft.ApiManagement/service/loggers', apimServiceName, 'azuremonitor')
 
 // =====================================================================
 //    NAMED VALUES
@@ -410,12 +462,12 @@ module apiUniversalLLM '../modules/apim/inference-api.bicep' = if (updateUnivers
   params: {
     apiManagementName: apimService.name
     inferenceAPIName: 'universal-llm-api'
-    inferenceAPIPath: ''
+    inferenceAPIPath: universalLLMApiPathPrefix
     inferenceAPIType: 'OpenAIV1'
     inferenceAPIDisplayName: 'Universal LLM API'
     inferenceAPIDescription: 'Universal LLM API to route requests to different LLM providers including Azure OpenAI, AI Foundry and 3rd party models.'
     allowSubscriptionKey: true
-    apimLoggerId: azMonitorLogger.id
+    apimLoggerId: azMonitorLoggerId
     policyXml: loadTextContent('../modules/apim/policies/universal-llm-api-policy-v2.xml')
     azureMonitorLogSettings: azureMonitorLogSettings
     appInsightsLogSettings: appInsightsLogSettings
@@ -425,6 +477,7 @@ module apiUniversalLLM '../modules/apim/inference-api.bicep' = if (updateUnivers
     llmBackends
     llmBackendPools
     llmPolicyFragments
+    azMonitorLoggerNew
   ]
 }
 
@@ -433,12 +486,12 @@ module apimOpenaiApi '../modules/apim/inference-api.bicep' = if (updateAzureOpen
   params: {
     apiManagementName: apimService.name
     inferenceAPIName: 'azure-openai-api'
-    inferenceAPIPath: ''
+    inferenceAPIPath: azureOpenAIApiPathPrefix
     inferenceAPIType: 'AzureOpenAI'
     inferenceAPIDisplayName: 'Azure OpenAI API'
     inferenceAPIDescription: 'Azure OpenAI API to route requests to different LLM providers including Azure OpenAI, AI Foundry and 3rd party models.'
     allowSubscriptionKey: true
-    apimLoggerId: azMonitorLogger.id
+    apimLoggerId: azMonitorLoggerId
     policyXml: loadTextContent('../modules/apim/policies/azure-open-ai-api-policy.xml')
     azureMonitorLogSettings: azureMonitorLogSettings
     appInsightsLogSettings: appInsightsLogSettings
@@ -448,6 +501,7 @@ module apimOpenaiApi '../modules/apim/inference-api.bicep' = if (updateAzureOpen
     llmBackends
     llmBackendPools
     llmPolicyFragments
+    azMonitorLoggerNew
   ]
 }
 
@@ -460,7 +514,7 @@ module apiUnifiedAI '../modules/apim/unified-ai-api.bicep' = if (updateUnifiedAi
   params: {
     apiManagementName: apimService.name
     enabled: enableUnifiedAiApi
-    apimLoggerId: azMonitorLogger.id
+    apimLoggerId: azMonitorLoggerId
     azureMonitorLogSettings: azureMonitorLogSettings
   }
   dependsOn: [
@@ -468,6 +522,7 @@ module apiUnifiedAI '../modules/apim/unified-ai-api.bicep' = if (updateUnifiedAi
     llmBackends
     llmBackendPools
     llmPolicyFragments
+    azMonitorLoggerNew
   ]
 }
 

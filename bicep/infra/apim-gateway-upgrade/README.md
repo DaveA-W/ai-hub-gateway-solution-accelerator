@@ -26,7 +26,7 @@ Notes:
 | **APIs** | Universal LLM API, Azure OpenAI API, Unified AI Wildcard API, OpenAI Realtime WebSocket API — including OpenAPI specs, API-level policies, and operation-level policies |
 | **LLM Backends** | Backend definitions, backend pools, and associated policy fragments for dynamic model routing |
 | **Named Values** | UAMI client ID, PII service URL/key, Content Safety URL, JWT authentication values (TenantId, AppRegistrationId, Issuer, OpenIdConfigUrl) |
-| **Logging / Diagnostics** | APIM-level Application Insights diagnostic configuration and per-API Azure Monitor diagnostic configuration |
+| **Logging / Diagnostics** | APIM-level Application Insights diagnostic configuration, per-API Azure Monitor diagnostic configuration, and optional creation of the `azuremonitor` logger + diagnostic settings to an existing Log Analytics workspace |
 | **Redis Cache** | APIM cache entity backed by Azure Managed Redis (for semantic caching) |
 | **Embeddings Backend** | APIM backend targeting AI Foundry embeddings endpoint (for semantic caching) |
 
@@ -35,7 +35,7 @@ Notes:
 ## What this deployment does NOT do
 
 - Provision a new APIM service instance
-- Create or modify loggers (Application Insights logger and Azure Monitor logger must already exist)
+- Create or modify the Application Insights logger (it must already exist); the Azure Monitor logger can optionally be created via `deployAzureMonitorLogger`
 - Configure Event Hub loggers
 - Publish to API Center
 - Deploy sample MCP servers
@@ -52,12 +52,43 @@ Notes:
 
 1. The APIM service referenced by `apimServiceName` must already exist in the target resource group.
 2. The user-assigned managed identity referenced by `managedIdentityName` must already exist in the same resource group.
-3. The following APIM loggers must be pre-provisioned on the APIM instance:
-   - `appinsights-logger` — Application Insights logger
-   - `azuremonitor` — Azure Monitor logger
+3. APIM loggers:
+   - `appinsights-logger` (Application Insights) must be pre-provisioned.
+   - `azuremonitor` (Azure Monitor) must be pre-provisioned **OR** set `deployAzureMonitorLogger = true` to create it during the upgrade — see [Surfacing the Azure Monitor logger](#surfacing-the-azure-monitor-logger-for-legacy-installs).
 4. Azure CLI authenticated with permissions to deploy to the target resource group.
 
+### Notes for classic provisioned older installation:
+
+If your APIM instance already exposes `/openai` and `/models` API paths, the new APIs would collide with the legacy ones. Resolve this with one of the two options below. **Both are safe against the shared policy fragments**: API policies strip the frontend prefix dynamically via `context.Api.Path`, and the `/openai`/`/models` values inside `frag-metadata-config.xml` are *backend* target paths — so neither a renamed legacy path nor a new prefix changes fragment behavior or backend routing.
+
+- **Option 1 — Rename the legacy APIs, deploy new at `/openai` and `/models`.** Change the existing APIs to e.g. `/openai-classic` and `/models-classic`, then run this upgrade with the default empty prefixes (WARNING: temporary disruption to existing consumers until they re-point).
+- **Option 2 — Deploy new APIs under a prefix.** Keep the legacy APIs untouched and set `universalLLMApiPathPrefix` / `azureOpenAIApiPathPrefix` (e.g. `v2`) so the new APIs land at `/v2/openai` and `/v2/models`. No disruption; consumers migrate at their own pace.
+
+| | Option 1 — rename legacy | Option 2 — prefix new |
+|---|---|---|
+| Bicep change required | No (operational rename only) | Yes (`*ApiPathPrefix` params, shipped) |
+| Final new-API paths | `/openai`, `/models` | `/v2/openai`, `/v2/models` |
+| Consumer disruption | Temporary (legacy URL changes) | None |
+| Client URL changes | Eventually back to `/openai`, `/models` | New clients use prefixed paths |
+| Cleanup | Decommission `*-classic` later | Optionally drop prefix later |
+| Best for | Cutover migrations | Side-by-side rollout / canary |
+
+> [!NOTE]
+> Path prefixes are policy-fragment safe — no fragment edits are needed for either option.
+
 ## Usage
+
+### Surfacing the Azure Monitor logger (for legacy installs)
+
+Older deployments may not have the `azuremonitor` logger. Enable it during the upgrade:
+
+```bicep
+param deployAzureMonitorLogger = true
+// Reference the EXISTING workspace already used by the legacy APIM — none is provisioned
+param logAnalyticsWorkspaceResourceId = '/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<law-name>'
+```
+
+This creates the `azuremonitor` logger and attaches APIM diagnostic settings routing `allLogs` and `AllMetrics` to the existing workspace. Leave `logAnalyticsWorkspaceResourceId` empty to create only the logger. When `deployAzureMonitorLogger = false`, the deployment assumes the logger already exists. No Log Analytics workspace is created.
 
 ### 1. Configure Parameters
 
@@ -107,7 +138,7 @@ param llmBackendConfig = [
 Run the deployment scoped to the resource group containing the APIM instance:
 
 ```bash
-az deployment group create --name gateway-upgrade-$(date +%Y%m%d%H%M) --resource-group <your-resource-group> --template-file main.bicep --parameters main.bicepparam
+az deployment group create --name gateway-upgrade --resource-group <your-resource-group> --template-file main.bicep --parameters main.bicepparam
 ```
 
 ## When to use this
@@ -122,6 +153,8 @@ az deployment group create --name gateway-upgrade-$(date +%Y%m%d%H%M) --resource
 | Adding a new LLM backend or model to existing pools | **Yes** |
 | Updating JWT authentication configuration | **Yes** |
 | Updating Unified AI Wildcard API | **Yes** |
+| Adding the azuremonitor logger to a legacy install (existing LAW) | **Yes** |
+| Deploying new APIs under a prefix to avoid /openai & /models conflicts | **Yes** |
 | Updating Redis cache or embeddings backend config | **Yes** |
 | Initial environment provisioning | No — use `bicep/infra/main.bicep` |
 | Changing APIM SKU, networking, or VNet configuration | No — use `bicep/infra/main.bicep` |
@@ -154,6 +187,7 @@ az deployment group create --name gateway-upgrade-$(date +%Y%m%d%H%M) --resource
 | `updateLLMPolicyFragments` | `true` | Update dynamic LLM policy fragments |
 | `updateRedisCache` | `false` | Update APIM Redis cache entity |
 | `updateEmbeddingsBackend` | `false` | Update APIM embeddings backend |
+| `deployAzureMonitorLogger` | `false` | Create the `azuremonitor` logger and (optional) diagnostic settings to an existing LAW |
 
 ### Feature-Specific Parameters
 
@@ -167,6 +201,9 @@ az deployment group create --name gateway-upgrade-$(date +%Y%m%d%H%M) --resource
 | `jwtAppRegistrationId` | `''` | JWT App Registration Client ID (required when `enableJwtAuth` is true) |
 | `enableRedisCache` | `false` | Enable APIM Redis cache entity (requires `redisCacheConnectionString`) |
 | `enableEmbeddingsBackend` | `false` | Enable APIM embeddings backend (requires `embeddingsBackendUrl`) |
+| `azureOpenAIApiPathPrefix` | `''` | Prefix for the Azure OpenAI API (`''`→`/openai`, `v2`→`/v2/openai`) for legacy coexistence |
+| `universalLLMApiPathPrefix` | `''` | Prefix for the Universal LLM API (`''`→`/models`, `v2`→`/v2/models`) for legacy coexistence |
+| `logAnalyticsWorkspaceResourceId` | `''` | Resource ID of an existing LAW for APIM diagnostics (only when `deployAzureMonitorLogger` is true) |
 
 ### Logging Settings
 
