@@ -34,6 +34,20 @@ param jwtTenantId = ''
 param jwtAppRegistrationId = ''
 
 // =====================================================================
+//    CLASSIC AI HUB GATEWAY (pre Citadel Governance Hub) — RESERVED
+//    ONLY for classic AI Hub Gateway installs provisioned before the
+//    Citadel Governance Hub release. Disabled by default.
+//    When enabled, provisions an llm-usage-container (/productName) in an
+//    EXISTING Cosmos DB account (in the SAME resource group as the APIM
+//    instance) referenced by its account name.
+// =====================================================================
+
+param enableClassicLlmUsageContainer = false
+param classicCosmosDbAccountName = ''
+param classicCosmosDbDatabaseName = 'ai-usage-db'
+param classicLlmUsageContainerThroughput = 400
+
+// =====================================================================
 //    LLM BACKENDS, POOLS & DYNAMIC POLICY FRAGMENTS
 //    Define all LLM backends and their supported models.
 //    Uncomment and configure the array below to match your environment.

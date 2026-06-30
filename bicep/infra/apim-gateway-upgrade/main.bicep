@@ -93,6 +93,26 @@ param jwtTenantId string = ''
 param jwtAppRegistrationId string = ''
 
 // =====================================================================
+//    CLASSIC AI HUB GATEWAY (pre Citadel Governance Hub) — RESERVED
+//    These settings are ONLY intended for classic AI Hub Gateway installs
+//    provisioned before the Citadel Governance Hub release. Disabled by default.
+// =====================================================================
+
+@description('[Classic AI Hub Gateway ONLY] Provision a dedicated llm-usage-container in an EXISTING Cosmos DB account. Reserved for classic AI Hub Gateway installs prior to the Citadel Governance Hub release. Disabled by default.')
+param enableClassicLlmUsageContainer bool = false
+
+@description('Name of the EXISTING Cosmos DB account (in the SAME resource group as the APIM instance) in which to provision the llm-usage-container. Required when enableClassicLlmUsageContainer is true.')
+param classicCosmosDbAccountName string = ''
+
+@description('Name of the EXISTING Cosmos DB SQL database in which to provision the llm-usage-container.')
+param classicCosmosDbDatabaseName string = 'ai-usage-db'
+
+@description('Throughput (RU/s) for the classic llm-usage-container.')
+@minValue(400)
+@maxValue(1000000)
+param classicLlmUsageContainerThroughput int = 400
+
+// =====================================================================
 //    API PATH PREFIXES (legacy coexistence)
 // =====================================================================
 
@@ -706,6 +726,20 @@ resource apimAppInsightsDiagnostics 'Microsoft.ApiManagement/service/diagnostics
         }
       }
     }
+  }
+}
+
+// =====================================================================
+//    CLASSIC AI HUB GATEWAY (pre Citadel Governance Hub) — RESERVED
+//    Provision the llm-usage-container in an EXISTING Cosmos DB account.
+// =====================================================================
+
+module classicLlmUsageContainer 'services/classic-llm-usage-container.bicep' = if (enableClassicLlmUsageContainer && !empty(classicCosmosDbAccountName)) {
+  name: 'classic-llm-usage-container'
+  params: {
+    cosmosDbAccountName: classicCosmosDbAccountName
+    databaseName: classicCosmosDbDatabaseName
+    throughput: classicLlmUsageContainerThroughput
   }
 }
 

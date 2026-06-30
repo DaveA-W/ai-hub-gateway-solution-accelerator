@@ -29,6 +29,7 @@ Notes:
 | **Logging / Diagnostics** | APIM-level Application Insights diagnostic configuration, per-API Azure Monitor diagnostic configuration, and optional creation of the `azuremonitor` logger + diagnostic settings to an existing Log Analytics workspace |
 | **Redis Cache** | APIM cache entity backed by Azure Managed Redis (for semantic caching) |
 | **Embeddings Backend** | APIM backend targeting AI Foundry embeddings endpoint (for semantic caching) |
+| **Classic LLM Usage Container** *(reserved)* | A dedicated `llm-usage-container` (partition key `/productName`) provisioned in an **existing** Cosmos DB account — **reserved for classic AI Hub Gateway installs prior to the Citadel Governance Hub release** (disabled by default) |
 
 >**NOTE**: It is very important depending on the gab between the newer gateway implementation and the existing one, try to make the initial run of this upgrade deployment with as many feature flags turned **on** as possible to ensure the APIM instance is fully updated, this will mean that backend routing configurations must be in place as well. Use this in non-production environment first to detect any potential issues before applying to production.
 
@@ -89,6 +90,38 @@ param logAnalyticsWorkspaceResourceId = '/subscriptions/<sub>/resourceGroups/<rg
 ```
 
 This creates the `azuremonitor` logger and attaches APIM diagnostic settings routing `allLogs` and `AllMetrics` to the existing workspace. Leave `logAnalyticsWorkspaceResourceId` empty to create only the logger. When `deployAzureMonitorLogger = false`, the deployment assumes the logger already exists. No Log Analytics workspace is created.
+
+### Classic AI Hub Gateway: LLM usage container (reserved)
+
+> [!IMPORTANT]
+> This configuration is **reserved exclusively for classic AI Hub Gateway installs provisioned
+> before the Citadel Governance Hub release**. It is **disabled by default** and should remain off
+> for Citadel Governance Hub deployments, which provision the `llm-usage-container` as part of their
+> own supporting-services pipeline.
+
+When enabled, this adds a single `llm-usage-container` (partition key `/productName`) to an
+**existing** Cosmos DB account that you reference by its account name. The account is expected to
+reside in the **same resource group as the APIM instance**. It is additive and idempotent — it only
+creates the container under the specified database and **never** changes the account's network
+configuration (public access, IP/VNet rules, private endpoints) or any other database/container.
+
+```bicep
+// Off by default — only turn on for classic AI Hub Gateway installs.
+param enableClassicLlmUsageContainer = true
+// EXISTING Cosmos DB account name (same resource group as APIM)
+param classicCosmosDbAccountName = 'cosmos-myaihub'
+// EXISTING database in which to create the container (default: ai-usage-db)
+param classicCosmosDbDatabaseName = 'ai-usage-db'
+// Throughput (RU/s) for the new container (default: 400)
+param classicLlmUsageContainerThroughput = 400
+```
+
+| Setting | Default | Description |
+|---|---|---|
+| `enableClassicLlmUsageContainer` | `false` | Master on/off switch (off = nothing is provisioned) |
+| `classicCosmosDbAccountName` | `''` | Name of the existing Cosmos DB account in the same RG as APIM (required when enabled) |
+| `classicCosmosDbDatabaseName` | `ai-usage-db` | Existing database that will hold the container |
+| `classicLlmUsageContainerThroughput` | `400` | Provisioned RU/s for the `llm-usage-container` |
 
 ### 1. Configure Parameters
 
