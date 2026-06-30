@@ -35,17 +35,19 @@ This package eliminates manual APIM configuration by providing:
 
 ## Deployment quick reference
 
+> For a condensed cheat-sheet of the folder conventions and deployment command, see the [Quick Reference Guide](./contract-quick-reference-guide.md).
+
 below are the high-level steps to deploy the use case onboarding Bicep package before diving into the detailed documentation:
 
-0. **Create a folder dedicated for use-cases contracts**: a folder like `contracts` in the citadel-access-contracts module to hold your use case specific files. 
-1. **Create a use-case contract folder**: under the contracts folder, create a new folder for your use case following the pattern `<businessunit>-<usecasename>` (e.g. `sales-assistant`, `hr-chatagent`).
+0. **Create a folder dedicated for use-cases contracts**: a folder like `contracts` in the citadel-access-contracts module to hold your use case specific files. The shipped `base-contracts/common` folder holds the base default contract with shared Governance Hub coordinates (subscription, APIM name, and resource group) that you can customize and reuse.
+1. **Create a use-case contract folder**: under the contracts folder, create a new folder for your use case following the pattern `<business-unit>/<use-case>` (e.g. `sales/assistant`, `hr/chat-agent`).
 2. **Create an environment subfolder**: under the use case folder, create a subfolder for each environment (e.g. `dev`, `test`, `prod`).
 3. **Prepare Parameter File**: Create new use case `.bicepparam` file (you can use `main.bicepparam` as a base) under the environment folder.
 4. **Create/Customize APIM Policy**: Use default or create a custom XML policy. For simplicity, policy file can be named `ai-product-policy.xml` and placed in the same environment folder.
 5. **Deploy template with the prepared parameter file**:
 ```bash
 # This can be executed in CLI or through a DevOps pipeline
-az deployment sub create --name <use-case-contract-name> --location <location> --template-file main.bicep --parameters contracts/<businessunit-usecasename>/<environment>/main.bicepparam
+az deployment sub create --name <use-case-contract-name> --location <location> --template-file main.bicep --parameters contracts/<business-unit>/<use-case>/<environment>/main.bicepparam
 ```
 
 >NOTE: Ensure that you are updating values according to your environment and folder structure.
@@ -151,17 +153,22 @@ citadel-access-contracts/
 │   └── foundryConnection.bicep         # Azure Microsoft Foundry connection module
 ├── policies/
 │   └── default-ai-product-policy.xml   # Default product policy
+├── base-contracts/                     # Base default contracts
+│   └── common/                         # Governance Hub coordinates (reusable base)
+│       ├── main.bicepparam
+│       └── ai-product-policy.xml
 ├── contracts/                          # Use-case contracts folder for source control 
-│   └── <businessunit-usecasename>/     # Use case folder (e.g., sales-assistant)
-│       ├── dev/                        # Environment subfolder
-│       │   ├── main.bicepparam         # Use case specific parameters
-│       │   └── ai-product-policy.xml   # Custom policy file
-│       ├── test/                       # Test environment
-│       │   ├── main.bicepparam
-│       │   └── ai-product-policy.xml
-│       └── prod/                       # Production environment
-│           ├── main.bicepparam
-│           └── ai-product-policy.xml
+│   └── <business-unit>/                # Business unit folder (e.g., sales)
+│       └── <use-case>/                 # Use case folder (e.g., assistant)
+│           ├── dev/                    # Environment subfolder
+│           │   ├── main.bicepparam     # Use case specific parameters
+│           │   └── ai-product-policy.xml   # Custom policy file
+│           ├── test/                   # Test environment
+│           │   ├── main.bicepparam
+│           │   └── ai-product-policy.xml
+│           └── prod/                   # Production environment
+│               ├── main.bicepparam
+│               └── ai-product-policy.xml
 ```
 
 ---
@@ -280,16 +287,16 @@ The deployment identity needs:
 
 ### Step 1: Create use case folder with environment subfolder
 
-Create a folder structure following the pattern `contracts/<businessunit-usecasename>/<environment>/` with copies of both the main.bicepparam and default policy as a base.
+Create a folder structure following the pattern `contracts/<business-unit>/<use-case>/<environment>/` with copies of both the main.bicepparam and default policy as a base.
 
 ```powershell
-# Create the folder structure: contracts/healthcare-chatbot/dev/
-mkdir -p bicep/infra/citadel-access-contracts/contracts/healthcare-chatbot/dev
-cd bicep/infra/citadel-access-contracts/contracts/healthcare-chatbot/dev
+# Create the folder structure: contracts/healthcare/chatbot/dev/
+mkdir -p bicep/infra/citadel-access-contracts/contracts/healthcare/chatbot/dev
+cd bicep/infra/citadel-access-contracts/contracts/healthcare/chatbot/dev
 
-# Copy template files (note: path goes up 3 levels due to environment subfolder)
-cp ../../../main.bicepparam main.bicepparam
-cp ../../../policies/default-ai-product-policy.xml ai-product-policy.xml
+# Copy template files (note: path goes up 4 levels due to business-unit/use-case/env nesting)
+cp ../../../../main.bicepparam main.bicepparam
+cp ../../../../policies/default-ai-product-policy.xml ai-product-policy.xml
 ```
 
 
@@ -303,7 +310,7 @@ code main.bicepparam
 Update these values:
 
 ```bicep
-using '../../../main.bicep'
+using '../../../../main.bicep'
 
 param apim = {
   subscriptionId: 'YOUR-SUBSCRIPTION-ID'        // ← Update
@@ -348,7 +355,7 @@ param services = [
 # Preview what will be created (run from the environment folder)
 az deployment sub what-if `
   --location swedencentral `
-  --template-file ../../../main.bicep `
+  --template-file ../../../../main.bicep `
   --parameters main.bicepparam
 ```
 
@@ -359,7 +366,7 @@ az deployment sub what-if `
 az deployment sub create `
   --name healthcare-chatbot-dev-onboarding `
   --location swedencentral `
-  --template-file ../../../main.bicep `
+  --template-file ../../../../main.bicep `
   --parameters main.bicepparam
 
 # Or run from the citadel-access-contracts root folder:
@@ -367,7 +374,7 @@ az deployment sub create `
   --name healthcare-chatbot-dev-onboarding `
   --location swedencentral `
   --template-file main.bicep `
-  --parameters contracts/healthcare-chatbot/dev/main.bicepparam
+  --parameters contracts/healthcare/chatbot/dev/main.bicepparam
 ```
 
 ### Step 5: Verify Deployment

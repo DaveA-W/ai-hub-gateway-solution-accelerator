@@ -437,7 +437,7 @@ module apimOpenaiApi './inference-api.bicep' = {
     inferenceAPIName: 'azure-openai-api'
     inferenceAPIPath: ''
     inferenceAPIType: 'AzureOpenAI'
-    inferenceAPIDisplayName: 'Azure OpenAI API'
+    inferenceAPIDisplayName: 'Azure OpenAI (Legacy)'
     inferenceAPIDescription: 'Azure OpenAI API to route requests to different LLM providers including Azure OpenAI, AI Foundry and 3rd party models.'
     allowSubscriptionKey: entraAuth ? false:true
     apimLoggerId: apimAzMonitorLogger.id
