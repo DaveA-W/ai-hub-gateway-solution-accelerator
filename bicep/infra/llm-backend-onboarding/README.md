@@ -109,6 +109,7 @@ az deployment sub create --name llm-backend-onboarding --location swedencentral 
 | `supportedModels` | array | Yes | Array of model objects (see Model Object Properties below) |
 | `priority` | number | No | 1-5, default 1 (lower = higher priority) |
 | `weight` | number | No | 1-1000, default 100 (load balancing weight) |
+| `circuitBreaker` | object | No | Per-backend circuit breaker override (shallow-merged over `circuitBreakerDefaults`). Supports `failureCount`, `failureInterval`, `tripDuration`, `acceptRetryAfter`, `errorReasons`, `statusCodeRanges`, and `enabled`. See [Circuit Breaker Configuration](#circuit-breaker-configuration) |
 
 ### Model Object Properties
 
@@ -307,6 +308,85 @@ param awsRegion = 'us-east-1'
 ```
 
 > **Important**: Store AWS access keys securely. Consider using Azure Key Vault references for the APIM named values in production. See [Create IAM user access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html#Using_CreateAccessKey) for generating AWS access keys.
+
+## Circuit Breaker Configuration
+
+Each APIM backend can be protected by a [circuit breaker](https://learn.microsoft.com/azure/api-management/backends#circuit-breaker) that temporarily stops routing to a backend once it starts failing, and automatically probes it back into rotation after a cool-off. Circuit breaking is controlled at two levels:
+
+1. **`configureCircuitBreaker`** (bool, default `true`) — the master toggle. When `false`, no backend gets a circuit breaker.
+2. **`circuitBreakerDefaults`** (object) — the default rule applied to **every** backend when the master toggle is on.
+3. **Per-backend `circuitBreaker`** (object, optional) — added to an individual `llmBackendConfig` entry to override a subset of the defaults for that one backend, or to disable it entirely.
+
+### Settings
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `failureCount` | number | `3` | Number of failures within `failureInterval` that trips the breaker |
+| `failureInterval` | string (ISO 8601) | `PT5M` | Rolling window used to count failures |
+| `tripDuration` | string (ISO 8601) | `PT1M` | How long the breaker stays open once tripped |
+| `acceptRetryAfter` | bool | `true` | Honor an upstream `Retry-After` header when tripping |
+| `errorReasons` | string[] | `['Server errors']` | Failure reasons that count toward the breaker |
+| `statusCodeRanges` | object[] | `429` and `500-503` | HTTP status ranges (`{ min, max }`) counted as failures |
+| `enabled` | bool | `true` | Per-backend only — set `false` to disable the breaker for that backend even when the master toggle is on |
+
+> The built-in defaults match the previously hard-coded rule, so existing deployments behave identically when no new parameters are supplied.
+
+### Global defaults
+
+Tune the rule applied to all backends by supplying `circuitBreakerDefaults` in your `.bicepparam` file:
+
+```bicep
+param configureCircuitBreaker = true
+
+param circuitBreakerDefaults = {
+  failureCount: 5
+  failureInterval: 'PT1M'
+  tripDuration: 'PT30S'
+  acceptRetryAfter: true
+  errorReasons: [ 'Server errors' ]
+  statusCodeRanges: [
+    { min: 429, max: 429 }
+    { min: 500, max: 503 }
+  ]
+}
+```
+
+### Per-backend override
+
+Add a `circuitBreaker` object to any backend entry. Only the keys you set change; the rest fall back to `circuitBreakerDefaults`:
+
+```bicep
+param llmBackendConfig = [
+  {
+    backendId: 'aif-citadel-primary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-0.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [ /* ... */ ]
+    priority: 1
+    weight: 100
+    // Trip faster than the global default for this backend only
+    circuitBreaker: {
+      failureCount: 5
+      failureInterval: 'PT1M'
+      tripDuration: 'PT30S'
+    }
+  }
+  {
+    backendId: 'aif-citadel-secondary'
+    backendType: 'ai-foundry'
+    endpoint: 'https://aif-RESOURCE_TOKEN-1.cognitiveservices.azure.com/'
+    authType: 'managed-identity'
+    supportedModels: [ /* ... */ ]
+    priority: 2
+    weight: 50
+    // Disable the circuit breaker for this backend only
+    circuitBreaker: { enabled: false }
+  }
+]
+```
+
+> **Backward compatible.** `circuitBreakerDefaults` and per-backend `circuitBreaker` are both optional. With neither supplied, every backend gets the same rule as before (`failureCount: 3`, `PT5M` window, `PT1M` trip, on `429` + `500-503`).
 
 ## Image Models
 

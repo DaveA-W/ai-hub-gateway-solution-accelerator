@@ -69,8 +69,42 @@ param apimManagedIdentity object
 })
 param llmBackendConfig array
 
-@description('Whether to configure circuit breaker for backends (recommended for production)')
+@description('Whether to configure circuit breaker for backends (master toggle; recommended for production). Individual backends can opt out via `circuitBreaker.enabled: false` in their config.')
 param configureCircuitBreaker bool = true
+
+@description('Default circuit breaker settings applied to every backend unless overridden per-backend via the backend config `circuitBreaker` object')
+@metadata({
+  description: '''
+  Shape (all optional — omitted keys fall back to the built-in defaults shown):
+  - failureCount: Number of failures within the interval that trips the breaker (default 3)
+  - failureInterval: ISO 8601 duration window used to count failures (default 'PT5M')
+  - tripDuration: ISO 8601 duration the breaker stays open once tripped (default 'PT1M')
+  - acceptRetryAfter: Honor upstream Retry-After header when tripping (default true)
+  - errorReasons: Failure reasons that count toward the breaker (default ['Server errors'])
+  - statusCodeRanges: HTTP status ranges counted as failures (default 429 and 500-503)
+  Per-backend, add a `circuitBreaker` object to any llmBackendConfig entry to override
+  a subset of these (shallow-merged) or set `enabled: false` to disable it for that backend.
+  '''
+})
+param circuitBreakerDefaults object = {
+  failureCount: 3
+  failureInterval: 'PT5M'
+  tripDuration: 'PT1M'
+  acceptRetryAfter: true
+  errorReasons: [
+    'Server errors'
+  ]
+  statusCodeRanges: [
+    {
+      min: 429
+      max: 429
+    }
+    {
+      min: 500
+      max: 503
+    }
+  ]
+}
 
 @description('AWS access key ID for Amazon Bedrock authentication (required when using aws-bedrock backends)')
 @secure()
@@ -147,6 +181,7 @@ module llmBackends 'modules/llm-backends.bicep' = {
     managedIdentityClientId: managedIdentity.properties.clientId
     llmBackendConfig: llmBackendConfig
     configureCircuitBreaker: configureCircuitBreaker
+    circuitBreakerDefaults: circuitBreakerDefaults
     anthropicVersion: anthropicVersion
   }
 }

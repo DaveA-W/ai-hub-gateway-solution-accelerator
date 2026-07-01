@@ -65,6 +65,13 @@ param apimManagedIdentity = {
 // - priority: 1-5, default 1 (lower = higher priority for load balancing)
 // - weight: 1-1000, default 100 (higher = more traffic share)
 //
+// Optional Property (per-backend circuit breaker override):
+// - circuitBreaker: Object that overrides circuitBreakerDefaults for THIS backend
+//   only (shallow-merged). Supported keys: failureCount, failureInterval,
+//   tripDuration, acceptRetryAfter, errorReasons, statusCodeRanges. Set
+//   { enabled: false } to disable the circuit breaker for this backend even when
+//   the global configureCircuitBreaker toggle is on. See circuitBreakerDefaults below.
+//
 // Model Object Properties (in supportedModels array):
 // - name: Model name (required) - e.g., 'gpt-4o', 'DeepSeek-R1'
 // - sku: SKU name for the deployment (default: 'Standard')
@@ -119,6 +126,13 @@ param llmBackendConfig = [
     ]
     priority: 2
     weight: 50
+    // Per-backend circuit breaker override (optional). Only the supplied keys
+    // are changed; the rest fall back to circuitBreakerDefaults below.
+    // circuitBreaker: {
+    //   failureCount: 5
+    //   failureInterval: 'PT1M'
+    //   tripDuration: 'PT30S'
+    // }
   }
 
   // ----------------------------------
@@ -205,12 +219,53 @@ param llmBackendConfig = [
 // ============================================================================
 // OPTIONAL: Circuit Breaker Configuration
 // ============================================================================
-// Enable circuit breaker for backend resilience. When enabled, APIM will
-// temporarily stop routing to backends that are experiencing failures.
+// Master toggle for backend circuit breaking. When enabled, APIM temporarily
+// stops routing to backends that are experiencing failures. Individual backends
+// can opt out by adding `circuitBreaker: { enabled: false }` to their config
+// entry (see the per-backend `circuitBreaker` override documented above).
 //
 // Recommended: true for production environments
 // ============================================================================
 param configureCircuitBreaker = true
+
+// ============================================================================
+// OPTIONAL: Circuit Breaker Defaults
+// ============================================================================
+// Default circuit breaker settings applied to EVERY backend (when
+// configureCircuitBreaker is true). Any backend can override a subset of these
+// by adding a `circuitBreaker` object to its llmBackendConfig entry — the
+// per-backend values are shallow-merged over these defaults.
+//
+// Properties (all optional — the defaults below match previous behavior):
+// - failureCount: Failures within the interval that trip the breaker (default: 3)
+// - failureInterval: ISO 8601 window used to count failures (default: 'PT5M')
+// - tripDuration: ISO 8601 duration the breaker stays open once tripped (default: 'PT1M')
+// - acceptRetryAfter: Honor upstream Retry-After header when tripping (default: true)
+// - errorReasons: Failure reasons that count toward the breaker (default: ['Server errors'])
+// - statusCodeRanges: HTTP status ranges counted as failures (default: 429 and 500-503)
+//
+// Per-backend override example (inside an llmBackendConfig entry):
+//   circuitBreaker: {
+//     failureCount: 5
+//     failureInterval: 'PT1M'
+//     tripDuration: 'PT30S'
+//   }
+// Disable for a single backend:
+//   circuitBreaker: { enabled: false }
+// ============================================================================
+param circuitBreakerDefaults = {
+  failureCount: 3
+  failureInterval: 'PT5M'
+  tripDuration: 'PT1M'
+  acceptRetryAfter: true
+  errorReasons: [
+    'Server errors'
+  ]
+  statusCodeRanges: [
+    { min: 429, max: 429 }
+    { min: 500, max: 503 }
+  ]
+}
 
 // ============================================================================
 // OPTIONAL: Model Aliases
