@@ -914,4 +914,5 @@ llm-backend-onboarding/
 
 - [Citadel Access Contracts](../citadel-access-contracts/README.md) - Configure use case access to governance hub
 - [LLM Access Guide](../../../guides/llm-access-guide.md) - Unified LLM access patterns and detailed routing architecture
+- [Resiliency Guide](../../../guides/resiliency-guide.md) - Circuit breaker, session affinity, automated failover, and error handling — what to configure and when
 - [Full Deployment Guide](../../../guides/full-deployment-guide.md) - Complete Citadel deployment guide
