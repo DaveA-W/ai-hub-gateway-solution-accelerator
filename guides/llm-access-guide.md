@@ -747,6 +747,23 @@ Model: "gpt-4o" → Pool: "gpt-4o-backend-pool"
 - **Weight**: traffic distribution ratio among same-priority backends
 - **Failover**: automatic retry to next backend on 429/503 errors
 
+### Session affinity (sticky routing for stateful models)
+
+Pure load balancing assumes every request is independent. **Stateful** models — where a follow-up call must reach the same backend that holds the conversation/thread state (the OpenAI **Responses API** and **Assistants API**) — break under round-robin routing. Session affinity makes a pool sticky: APIM sets a session cookie on the first response, and when the client replays it, routes the request back to the **same** pool member.
+
+Enablement is **per-model**, so a single backend can mix stateful and stateless models:
+
+- Flag the stateful model with `sessionAwareModel: true` in its model object. Only that model's pool becomes sticky; stateless models on the same backend stay purely load-balanced.
+- `configureSessionAffinity` (default `true`) is a global kill-switch; `sessionAffinityDefaults` sets the cookie (`cookieName` default `ai-gateway-affinity`, `source` `Cookie`). A per-backend `sessionAffinity` object overrides the cookie for that backend's session-aware pools.
+
+```
+Model: "gpt-4.1" (sessionAwareModel: true) → Pool: "gpt41-...-backend-pool"
+                    ├── Backend 1 (Priority: 1, Weight: 100)   ← first request lands here,
+                    └── Backend 2 (Priority: 2, Weight: 50)       cookie pins the session to it
+```
+
+**Client requirement:** the client must persist and replay the affinity cookie. Reuse a **single HTTP client with a shared cookie jar (cookie container)** for all requests in one session so the `Set-Cookie` value is echoed back on every follow-up call; use separate cookie jars for separate sessions. Affinity is best-effort across gateway units and applies only to pooled (multi-backend) session-aware models — a tripped circuit breaker still fails over to another member. See [LLM Backend Onboarding — Session Affinity Configuration](../bicep/infra/llm-backend-onboarding/README.md#session-affinity-configuration).
+
 ### Pool isolation: `compatible-pool-types`
 
 Each api-type in `frag-metadata-config.xml` can declare a `compatible-pool-types` CSV. The pool resolver in `frag-set-target-backend-pool.xml` skips any pool whose `poolType` is not in that list **before** matching on model name. This lets the same model id appear in two pools — e.g. `claude-3-5-haiku-20241022` on both an `aws-bedrock` (native Converse) pool and an `aws-bedrock-mantle` (OpenAI-compat) pool — without suffix tricks: `/bedrock/...` only routes to `aws-bedrock`, `/v1/chat/completions` only routes to OpenAI-compat pools.

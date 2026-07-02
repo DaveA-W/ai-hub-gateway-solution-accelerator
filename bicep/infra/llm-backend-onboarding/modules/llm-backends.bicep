@@ -259,4 +259,5 @@ output backendDetails array = [for (config, i) in llmBackendConfig: {
   supportedModels: config.supportedModels
   priority: config.?priority ?? 1
   weight: config.?weight ?? 100
+  sessionAffinity: config.?sessionAffinity ?? {}
 }]

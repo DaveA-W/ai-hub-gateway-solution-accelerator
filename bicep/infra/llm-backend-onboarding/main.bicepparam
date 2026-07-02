@@ -8,7 +8,7 @@ using 'main.bicep'
 // dynamic model-based routing.
 //
 // REQUIRED PARAMETERS: apim, apimManagedIdentity, llmBackendConfig
-// OPTIONAL PARAMETERS: configureCircuitBreaker, deployUniversalLlmApi, universalLlmApiPath, tags
+// OPTIONAL PARAMETERS: configureCircuitBreaker, configureSessionAffinity, sessionAffinityDefaults, deployUniversalLlmApi, universalLlmApiPath, tags
 // ============================================================================
 
 // ============================================================================
@@ -72,6 +72,11 @@ param apimManagedIdentity = {
 //   { enabled: false } to disable the circuit breaker for this backend even when
 //   the global configureCircuitBreaker toggle is on. See circuitBreakerDefaults below.
 //
+// Optional Property (per-backend session affinity override):
+// - sessionAffinity: Object that overrides sessionAffinityDefaults for the session-aware
+//   model pools THIS backend participates in (shallow-merged). Supported keys: cookieName,
+//   source. The first pool member that supplies an override wins. See sessionAffinityDefaults below.
+//
 // Model Object Properties (in supportedModels array):
 // - name: Model name (required) - e.g., 'gpt-4o', 'DeepSeek-R1'
 // - sku: SKU name for the deployment (default: 'Standard')
@@ -82,6 +87,9 @@ param apimManagedIdentity = {
 // - apiVersion: API version for OpenAI-type requests (default: '2024-02-15-preview')
 // - timeout: Request timeout in seconds (default: 120)
 // - inferenceApiVersion: API version for inference-type requests, e.g., '2024-05-01-preview' (optional, for non-OpenAI models)
+// - sessionAwareModel: true/false (default: false). Marks a stateful model (e.g., OpenAI
+//   Responses / Assistants). When such a model is served by a multi-backend pool, the pool
+//   gets session affinity so requests replaying the affinity cookie stick to the same backend.
 //
 // Example configurations for different scenarios are shown below.
 // ============================================================================
@@ -100,7 +108,8 @@ param llmBackendConfig = [
     supportedModels: [
       { name: 'gpt-4o-mini', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-07-18', retirementDate: '2026-09-30' }
       { name: 'gpt-4o', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2024-11-20', retirementDate: '2026-09-30' }
-      { name: 'gpt-4.1', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-04-14', retirementDate: '2026-10-14', apiVersion: '2025-04-01-preview', timeout: 180 }
+      // gpt-4.1 supports the stateful OpenAI Responses API — flag it so its pool gets session affinity
+      { name: 'gpt-4.1', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-04-14', retirementDate: '2026-10-14', apiVersion: '2025-04-01-preview', timeout: 180, sessionAwareModel: true }
       { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
       { name: 'Phi-4', sku: 'GlobalStandard', capacity: 1, modelFormat: 'Microsoft', modelVersion: '3', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
       { name: 'text-embedding-3-large', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '1', retirementDate: '2027-04-14' }
@@ -121,6 +130,9 @@ param llmBackendConfig = [
     authType: 'managed-identity'
     supportedModels: [
       { name: 'gpt-5', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-08-07', retirementDate: '2027-02-05' }
+      // gpt-4.1 is also served here; flagging it session-aware on both backends keeps the shared
+      // pool sticky. (Flagging on any one member is enough — the flag is ORed across the pool.)
+      { name: 'gpt-4.1', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '2025-04-14', retirementDate: '2026-10-14', apiVersion: '2025-04-01-preview', timeout: 180, sessionAwareModel: true }
       { name: 'DeepSeek-R1', sku: 'GlobalStandard', capacity: 1, modelFormat: 'DeepSeek', modelVersion: '1', retirementDate: '2099-12-30', inferenceApiVersion: '2024-05-01-preview' }
       { name: 'text-embedding-3-large', sku: 'GlobalStandard', capacity: 100, modelFormat: 'OpenAI', modelVersion: '1', retirementDate: '2027-04-14' }
     ]
@@ -132,6 +144,13 @@ param llmBackendConfig = [
     //   failureCount: 5
     //   failureInterval: 'PT1M'
     //   tripDuration: 'PT30S'
+    // }
+    // Per-backend session affinity override (optional). Applies to the session-aware model
+    // pools this backend joins; only the supplied keys change, the rest fall back to
+    // sessionAffinityDefaults below.
+    // sessionAffinity: {
+    //   cookieName: 'ai-gateway-affinity'
+    //   source: 'Cookie'
     // }
   }
 
@@ -265,6 +284,42 @@ param circuitBreakerDefaults = {
     { min: 429, max: 429 }
     { min: 500, max: 503 }
   ]
+}
+
+// ============================================================================
+// OPTIONAL: Session Affinity (Sticky Routing)
+// ============================================================================
+// Master toggle for backend-pool session affinity. This is only a global
+// kill-switch — the real opt-in is per-model via `sessionAwareModel: true` on a
+// model object. Leaving this true is safe: no pool gets affinity unless a model
+// is flagged session-aware.
+//
+// When a session-aware model is served by a pool (2+ backends), APIM sets an
+// affinity cookie so a client replaying it is routed back to the same backend.
+// Use this for stateful APIs (OpenAI Responses / Assistants) where follow-up
+// calls must land on the backend that holds the conversation/thread state. The
+// client must persist the cookie jar (a single/shared HTTP client) across all
+// requests in the session.
+//
+// Recommended: true (opt-in stays per-model)
+// ============================================================================
+param configureSessionAffinity = true
+
+// ============================================================================
+// OPTIONAL: Session Affinity Defaults
+// ============================================================================
+// Default affinity cookie settings applied to session-aware model pools. Any
+// backend can override a subset by adding a `sessionAffinity` object to its
+// llmBackendConfig entry (shallow-merged; first pool member with an override wins).
+//
+// Properties (all optional):
+// - cookieName: Name of the affinity cookie APIM sets/reads (default:
+//   'ai-gateway-affinity', chosen to avoid clashing with other client/server cookies)
+// - source: Where the session id is read from (only 'Cookie' is supported today)
+// ============================================================================
+param sessionAffinityDefaults = {
+  cookieName: 'ai-gateway-affinity'
+  source: 'Cookie'
 }
 
 // ============================================================================

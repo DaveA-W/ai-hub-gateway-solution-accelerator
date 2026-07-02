@@ -450,6 +450,14 @@ module apimOpenaiApi './inference-api.bicep' = {
     llmBackends
     llmBackendPools
     llmPolicyFragments
+    // Serialize OpenAPI import with the Universal LLM API. Both specs declare the
+    // same global operation tags (Chat, Embeddings, Audio, Images, Files, Models,
+    // Threads, Vector Stores, etc.). APIM creates these tags at service scope during
+    // import; running the two imports in parallel makes both try to CREATE the same
+    // tag simultaneously, causing the transient "Tag with the same name already
+    // exists" (ValidationError). Import tolerates pre-existing tags (hence retries
+    // succeed), so forcing sequential import guarantees a clean first-run.
+    apiUniversalLLM
   ]
 }
 

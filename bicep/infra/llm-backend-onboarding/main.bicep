@@ -48,8 +48,10 @@ param apimManagedIdentity object
     - apiVersion: (Optional) API version for OpenAI-type requests, default '2024-02-15-preview'
     - timeout: (Optional) Request timeout in seconds, default 120
     - inferenceApiVersion: (Optional) API version for inference-type requests (e.g., '2024-05-01-preview')
+    - sessionAwareModel: (Optional) true/false, default false. Marks a model as stateful (e.g., OpenAI Responses / Assistants). When such a model is served by a multi-backend pool, the pool gets session affinity so requests replaying the affinity cookie are routed back to the same backend.
   - priority: (Optional) 1-5, default 1 (lower = higher priority)
   - weight: (Optional) 1-1000, default 100 (higher = more traffic)
+  - sessionAffinity: (Optional) { cookieName?: 'ai-gateway-affinity', source?: 'Cookie' } per-backend override for the affinity cookie used by session-aware model pools this backend participates in. Shallow-merged over `sessionAffinityDefaults`; omit to use the defaults.
   '''
   example: [
     {
@@ -104,6 +106,25 @@ param circuitBreakerDefaults object = {
       max: 503
     }
   ]
+}
+
+@description('Master toggle for backend-pool session affinity (sticky routing). Global kill-switch only; the real opt-in is per-model via the `sessionAwareModel` flag on a model object. Leaving this true is safe because no pool receives affinity unless a model is flagged session-aware.')
+param configureSessionAffinity bool = true
+
+@description('Default session affinity cookie settings applied to session-aware model pools unless overridden per-backend via the backend config `sessionAffinity` object')
+@metadata({
+  description: '''
+  Applied only to pools whose model is flagged `sessionAwareModel: true`. Shape (all optional):
+  - cookieName: Name of the affinity cookie APIM sets/reads (default 'ai-gateway-affinity',
+    chosen to avoid clashing with other client/server cookies)
+  - source: Where the session id is read from (only 'Cookie' is supported by APIM today)
+  Per-backend, add a `sessionAffinity` object to any llmBackendConfig entry to override a subset
+  of these (shallow-merged). The first pool member that supplies an override wins.
+  '''
+})
+param sessionAffinityDefaults object = {
+  cookieName: 'ai-gateway-affinity'
+  source: 'Cookie'
 }
 
 @description('AWS access key ID for Amazon Bedrock authentication (required when using aws-bedrock backends)')
@@ -196,6 +217,8 @@ module llmBackendPools 'modules/llm-backend-pools.bicep' = {
   params: {
     apimServiceName: apim.name
     backendDetails: llmBackends.outputs.backendDetails
+    configureSessionAffinity: configureSessionAffinity
+    sessionAffinityDefaults: sessionAffinityDefaults
   }
 }
 
