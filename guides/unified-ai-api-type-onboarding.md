@@ -285,6 +285,8 @@ Add your backend to the `llmBackendConfig` array in your `.bicepparam` file with
 | `authType` | Authentication type (e.g., `aws-sigv4`, `managed-identity`, `api-key-bearer`). The legacy `authScheme` is still tolerated but superseded by `authType`. |
 | `supportedModels` | Array of model definitions with metadata |
 
+> **Stateful models:** add `sessionAwareModel: true` to any model object that must keep a client pinned to one backend across a session (e.g., the OpenAI Responses / Assistants APIs). When that model is served by a multi-backend pool, the pool gets session affinity so requests replaying the affinity cookie stick to the same backend. A single backend can mix session-aware and stateless models. Tune the cookie with `configureSessionAffinity` / `sessionAffinityDefaults` (default cookie `ai-gateway-affinity`) or a per-backend `sessionAffinity` override. See [LLM Backend Onboarding — Session Affinity Configuration](../bicep/infra/llm-backend-onboarding/README.md#session-affinity-configuration).
+
 **Example — Amazon Bedrock backend:**
 
 ```bicep

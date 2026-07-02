@@ -428,3 +428,5 @@ bicep/infra/citadel-access-contracts/contracts/sales-assistant/dev/ai-product-po
 bicep/infra/citadel-access-contracts/contracts/hr-chatagent/dev/main.bicepparam
 bicep/infra/citadel-access-contracts/contracts/hr-chatagent/dev/ai-product-policy.xml
 bicep/infra/llm-backend-onboarding/llm-backends-aliases-validation.bicepparam
+bicep/infra/llm-backend-onboarding/main.bicepparam
+scripts/generate-lean-openapi.py

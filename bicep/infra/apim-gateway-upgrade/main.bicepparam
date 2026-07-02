@@ -166,8 +166,8 @@ param azureMonitorLogSettings = {
   }
   largeLanguageModel: {
     logs: 'enabled'
-    requests:  { messages: 'all', maxSizeInBytes: 262144 }
-    responses: { messages: 'all', maxSizeInBytes: 262144 }
+    requests:  { messages: 'all', maxSizeInBytes: 0 } // maxSizeInBytes is 262144 bytes (256 KB)
+    responses: { messages: 'all', maxSizeInBytes: 0 } // maxSizeInBytes is 262144 bytes (256 KB)
   }
 }
 
