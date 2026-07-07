@@ -148,6 +148,7 @@ module privateEndpointTable '../networking/private-endpoint.bicep' = {
     dnsZoneResourceId: storageTableDnsZoneResourceId
   }
   dependsOn: [
+    privateEndpointBlob
     privateEndpointFile
   ]
 }
@@ -168,6 +169,8 @@ module privateEndpointQueue '../networking/private-endpoint.bicep' = {
     dnsZoneResourceId: storageQueueDnsZoneResourceId
   }
   dependsOn: [
+    privateEndpointBlob
+    privateEndpointFile
     privateEndpointTable
   ]
 }
